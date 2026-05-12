@@ -1,0 +1,60 @@
+# Gradle
+.gradle/
+build/
+out/
+build.gradle
+gradlew
+settings.gradle
+gradle/wrapper/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE files
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Niagara build output
+*.nmodule
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Python
+__pycache__/
+*.pyc
+
+# Local runtime/debug artifacts
+tmpinspect/
+*.log
+cookies.txt
+payload.json
+
+# Local agent/editor settings
+.claude/
+.private/
+module.xml
+
+# Local signing secrets (never commit private keys)
+signing/
+
+# Temporary files
+.temp/
+temp/
+
+# Visual Studio Code settings
+.vscode/
+
+# Local scripts
+scripts/
+
+# GitHub workflows
+.github/
+
+# Niagara Java stubs (local only, never commit)
+src/stubs/

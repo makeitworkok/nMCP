@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Niagara Module Descriptor
+  Module: nMCP
+  Version: 0.8.0
+  Vendor: makeitworkok
+-->
+<module
+  name="nMCP"
+    version="0.8.0"
+    preferredSymbol="nMCP"
+    bajaVersion="0"
+    vendor="makeitworkok"
+    vendorVersion="0.8.0"
+    runtimeProfile="rt"
+    nre="true"
+    autoload="true"
+    installable="true"
+    description="nMCP (Model Context Protocol) integration module. Exposes read-only station data through the MCP JSON-RPC protocol."
+>
+  <dependencies>
+    <dependency name="baja"         vendor="Tridium" vendorVersion="YOUR_VERSION_HERE"/>
+    <dependency name="web-rt"       vendor="Tridium" vendorVersion="YOUR_VERSION_HERE"/>
+    <dependency name="alarm-rt"     vendor="Tridium" vendorVersion="YOUR_VERSION_HERE" optional="true"/>
+    <dependency name="history-rt"   vendor="Tridium" vendorVersion="YOUR_VERSION_HERE" optional="true"/>
+    <dependency name="kitControl-rt" vendor="Tridium" vendorVersion="YOUR_VERSION_HERE" optional="true"/>
+  </dependencies>
+
+  <types>
+    <type name="McpService"
+          class="com.makeitworkok.nmcp.BMcpService"
+          extends="b:BAbstractService"
+          description="MCP Service component. Add under Services to expose an MCP endpoint."/>
+  </types>
+</module>

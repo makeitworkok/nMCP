@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bajaObjectGraph version="1.0">
+  <p h="1" m="b=baja" t="b:UnrestrictedFolder">
+    <p n="Services" t="b:UnrestrictedFolder">
+      <p n="BMcpService" m="m=nMCP" t="m:McpService"/>
+    </p>
+  </p>
+</bajaObjectGraph>
