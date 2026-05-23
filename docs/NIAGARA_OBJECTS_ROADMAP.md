@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # nMCP Roadmap
 
-**Current release: v0.8.0** — merged to `main`
+**Current release: v0.8.1** — merged to `main`
 
 ---
 
@@ -95,7 +95,7 @@
 
 ---
 
-### v0.8.0 — Slot Sheet Cleanup ✅ Current
+### v0.8.1 — Slot Sheet Cleanup ✅ Current
 - Removed legacy `eulaBlockEnabled` and `eulaOverridePassphrase` declared properties from `BMcpService`
 - Only `runtimeProfile` slot remains for the runtime compliance override path
 - Cleaner Workbench slot sheet: `readOnly` and `runtimeProfile` are the only two configurable hidden properties
@@ -125,7 +125,7 @@
 
 ---
 
-## Longer-Term (v0.8.0+)
+## Longer-Term (v0.8.1+)
 
 - `nmcp.bacnet.virtualObjects` — nav-tree traversal for BACnet virtual objects (see note below)
 - Graph-style relationship traversal (`nmcp.component.relationships`)

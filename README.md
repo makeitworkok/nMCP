@@ -31,7 +31,7 @@ See [NOTICES.md](NOTICES.md) for full details.
 # nMCP Module
 
 ![Niagara](https://img.shields.io/badge/Niagara-prior%20to%204.13-blue)
-![Version](https://img.shields.io/badge/version-0.8.0-orange)
+![Version](https://img.shields.io/badge/version-0.8.1-orange)
 ![MCP](https://img.shields.io/badge/nmcp-JSON--RPC%202.0-0A7CFF)
 ![Write Gated](https://img.shields.io/badge/Safety-Write--Gated-success)
 ![Claude Validated](https://img.shields.io/badge/Claude-Validated-7B61FF)
@@ -70,7 +70,7 @@ allowlist enforcement.
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | Build, install, start proxy, verify end-to-end |
 | [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 37 tools with arguments, examples, and response shapes |
 | [docs/NIAGARA_OBJECTS_ROADMAP.md](docs/NIAGARA_OBJECTS_ROADMAP.md) | Planned expansions (M1–M5) |
-| [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md) | v0.4.0 through v0.8.0 implementation lessons and operational guidance |
+| [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md) | v0.4.0 through v0.8.1 implementation lessons and operational guidance |
 | [nMCP-client](https://github.com/makeitworkok/nMCP-client) | Lightweight client for calling nMCP tools from scripts and apps |
 
 ---
@@ -185,7 +185,7 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full walkthrough.
 | `nmcp.station.restart` | Write | Request a controlled station restart (write-gated) |
 | `nmcp.driver.discoverAndAdd` | Write | Trigger driver network discovery (write-gated) |
 
-Total tools in v0.8.0: 37.
+Total tools in v0.8.1: 37.
 
 Full argument and response documentation: [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md)
 

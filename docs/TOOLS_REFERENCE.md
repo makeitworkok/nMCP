@@ -11,13 +11,13 @@ Sensitive slot names (`password`, `secret`, `token`, `key`, `credential`, `auth`
 - BMcpService `readOnly=false`: write-capable tools are allowed to run, still subject to allowlists and tool-specific validation.
 - This selector is persistent in station config and should be treated as an operational change-control toggle.
 
-This reference matches current branch behavior for v0.8.0.
+This reference matches current branch behavior for v0.8.1.
 
 ---
 
-## Tool Inventory (v0.8.0)
+## Tool Inventory (v0.8.1)
 
-v0.8.0 completes the slot sheet cleanup: legacy `eulaBlockEnabled` and `eulaOverridePassphrase` declared properties removed; only `runtimeProfile` override path remains.
+v0.8.1 includes slot sheet cleanup and current runtime behavior: legacy `eulaBlockEnabled` and `eulaOverridePassphrase` declared properties removed; only `runtimeProfile` override path remains.
 All tool names use the `nmcp.*` namespace.
 
 | Category | Tools |
@@ -71,7 +71,7 @@ curl -X POST http://127.0.0.1:8765/nmcp \
   "osVersion": "10.0",
   "overallCpuUsage": 7,
   "totalPhysicalMemory": 14626736,
-  "moduleVersion": "0.8.0",
+  "moduleVersion": "0.8.1",
   "readOnly": false
 }
 ```
