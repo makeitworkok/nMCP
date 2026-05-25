@@ -275,8 +275,9 @@ Any ORD that does not start with one of these roots is immediately rejected.
 | v0.6.1 — Priority-Slot Writes | ✅ Done | `point.write` (in10, operator priority), `point.override` (in8, override priority), `point.write null` releases slot via `setStatusNull(true)` on `BStatusNumeric`; `component.invokeAction`, `station.restart`, `driver.discoverAndAdd`; `alarm.ack` (acknowledge by source ORD); `schedule.write` (set default output on `BWeeklySchedule`); 35 tools, 171 unit tests |
 | v0.6.2 — BACnet Discovery | ✅ Done | `bacnet.discover` — read-only BACnet stack device registry via `BBacnetNetwork.getDeviceList()` (all WhoIs/IAm-heard devices, unprovisioned included); `bacnet.devices` rewritten from stub to real child-component traversal; 5 new BACnet stubs; 36 tools, 185 unit tests |
 | v0.7.0 — Version Check + Hidden Properties | ✅ Done | Startup now logs detected Niagara version and emits warning text for 4.13+ stations: "EULA of the version 4.13 and greater forbids use of AI, see Section 3.1(q) for details."; `enabled` and `readOnly` hidden by default for cleaner Workbench UI; 36 tools, 185 unit tests |
-| v0.8.0 — Slot Sheet Cleanup | ✅ Done | Cleaner Workbench slot sheet; 36 tools, 185 unit tests |
-| v0.8+ — Roadmap | 🔜 Planned | Object model enrichment, batch read, relationship traversal — see roadmap |
+| v0.8.0 — Slot Sheet Cleanup | ✅ Done | Cleaner Workbench slot sheet; legacy declared properties removed in favor of `runtimeProfile` override path |
+| v0.8.1 — Autopilot Hardening + Write Gate Centralization | ✅ Current | Deterministic structured validation errors for wiresheet operations, schema introspection for client self-correction, and runtime-propagated `readOnly` toggle so write access is controlled only by BMcpService |
+| v0.9+ — Roadmap | 🔜 Planned | Object model enrichment, batch read, relationship traversal — see roadmap |
 
 
 ---
