@@ -3,6 +3,7 @@ package com.makeitworkok.nmcp;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,11 +21,13 @@ public final class McpToolResult {
     private final boolean error;
     private final String content;
     private final String errorMessage;
+    private final Map<String, Object> errorPayload;
 
-    private McpToolResult(boolean error, String content, String errorMessage) {
+    private McpToolResult(boolean error, String content, String errorMessage, Map<String, Object> errorPayload) {
         this.error = error;
         this.content = content;
         this.errorMessage = errorMessage;
+        this.errorPayload = errorPayload;
     }
 
     /** Creates a successful result wrapping the given JSON content string. */
@@ -32,7 +35,7 @@ public final class McpToolResult {
         if (jsonContent == null) {
             throw new IllegalArgumentException("jsonContent must not be null");
         }
-        return new McpToolResult(false, jsonContent, null);
+        return new McpToolResult(false, jsonContent, null, null);
     }
 
     /** Creates a successful result from a Map that will be serialised to JSON. */
@@ -42,7 +45,45 @@ public final class McpToolResult {
 
     /** Creates an error result. */
     public static McpToolResult error(String message) {
-        return new McpToolResult(true, null, message != null ? message : "Unknown error");
+        String msg = message != null ? message : "Unknown error";
+        return error(msg, null, null, null, null);
+    }
+
+    /**
+     * Creates an error result with deterministic machine-readable fields.
+     * The top-level {@code error} string is always preserved for compatibility.
+     */
+    public static McpToolResult error(String message,
+                                      String code,
+                                      String path,
+                                      String hint,
+                                      List<Object> allowedValues) {
+        String msg = message != null ? message : "Unknown error";
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("error", msg);
+        payload.put("code", code != null ? code : "NMCP_UNKNOWN_ERROR");
+        payload.put("message", msg);
+        payload.put("path", path != null ? path : "");
+        payload.put("hint", hint != null ? hint : "");
+        payload.put("allowedValues", allowedValues != null ? allowedValues : new ArrayList<Object>());
+        return new McpToolResult(true, null, msg, payload);
+    }
+
+    /** Creates an error result from a fully formed payload map. */
+    public static McpToolResult error(Map<String, Object> payload) {
+        String msg = "Unknown error";
+        if (payload != null) {
+            Object error = payload.get("error");
+            if (error != null) {
+                msg = String.valueOf(error);
+            } else {
+                Object message = payload.get("message");
+                if (message != null) {
+                    msg = String.valueOf(message);
+                }
+            }
+        }
+        return new McpToolResult(true, null, msg, payload);
     }
 
     public boolean isError() {
@@ -69,7 +110,10 @@ public final class McpToolResult {
     public List<Object> toMcpContent() {
         String text;
         if (error) {
-            text = NiagaraJson.buildObject(NiagaraJson.obj("error", errorMessage));
+            Map<String, Object> payload = errorPayload != null
+                    ? errorPayload
+                    : NiagaraJson.obj("error", errorMessage);
+            text = NiagaraJson.buildObject(payload);
         } else {
             text = content;
         }

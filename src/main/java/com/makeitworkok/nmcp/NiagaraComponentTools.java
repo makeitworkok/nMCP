@@ -10,6 +10,7 @@ import javax.baja.sys.SlotCursor;
 import javax.baja.sys.Sys;
 import javax.baja.naming.BOrd;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -151,23 +152,24 @@ public final class NiagaraComponentTools {
             @Override public McpToolResult call(Map<String, Object> arguments, Context cx) {
                 String ord = getStringArg(arguments, "ord");
                 if (ord == null) return McpToolResult.error("Missing required argument: ord");
+                String normalizedOrd = normalizeOrd(ord);
                 try {
-                    security.checkAllowlist(ord);
+                    security.checkAllowlist(normalizedOrd);
                     // TODO: Replace with actual ORD resolution
-                    BComponent comp = resolveComponent(ord, cx);
+                    BComponent comp = resolveComponent(normalizedOrd, cx);
                     if (comp == null) {
-                        return McpToolResult.error("ORD not found: " + ord);
+                        return McpToolResult.error("ORD not found: " + normalizedOrd);
                     }
                     Map<String, Object> summary = buildComponentSummary(comp, cx);
                     Map<String, Object> result = NiagaraJson.obj(
-                            "ord",         ord,
+                            "ord",         normalizedOrd,
                             "type",        comp.getType() != null ? comp.getType().getTypeName() : "unknown",
                             "displayName", comp.getDisplayName(cx),
                             "summary",     summary
                     );
                     return McpToolResult.success(result);
                 } catch (NiagaraSecurity.McpSecurityException e) {
-                    return McpToolResult.error(e.getMessage());
+                    return securityErrorResult(e, "ord");
                 } catch (Throwable e) {
                     LOG.warning("nmcp.component.read error for " + ord + ": " + e.getMessage());
                     return McpToolResult.error("Error reading component: " + e.getMessage());
@@ -202,13 +204,14 @@ public final class NiagaraComponentTools {
                 String ord = getStringArg(arguments, "ord");
                 if (ord == null) return McpToolResult.error("Missing required argument: ord");
                 Integer limit = getIntArg(arguments, "limit");
+                String normalizedOrd = normalizeOrd(ord);
                 try {
-                    security.checkAllowlist(ord);
+                    security.checkAllowlist(normalizedOrd);
                     int effectiveLimit = security.effectiveLimit(limit);
                     // TODO: Replace with actual ORD resolution
-                    BComponent parent = resolveComponent(ord, cx);
+                    BComponent parent = resolveComponent(normalizedOrd, cx);
                     if (parent == null) {
-                        return McpToolResult.error("ORD not found: " + ord);
+                        return McpToolResult.error("ORD not found: " + normalizedOrd);
                     }
                     List<Object> children = new ArrayList<>();
                     BComponent[] childArray = parent.getChildComponents();
@@ -217,9 +220,9 @@ public final class NiagaraComponentTools {
                         for (BComponent child : childArray) {
                             if (count >= effectiveLimit) break;
                             String childName = child.getName();
-                            String childOrd  = ord.endsWith("/")
-                                    ? ord + childName
-                                    : ord + "/" + childName;
+                            String childOrd  = normalizedOrd.endsWith("/")
+                                ? normalizedOrd + childName
+                                : normalizedOrd + "/" + childName;
                             Map<String, Object> childEntry = NiagaraJson.obj(
                                     "name", childName,
                                     "ord",  childOrd,
@@ -230,12 +233,12 @@ public final class NiagaraComponentTools {
                         }
                     }
                     Map<String, Object> result = NiagaraJson.obj(
-                            "ord",      ord,
+                            "ord",      normalizedOrd,
                             "children", children
                     );
                     return McpToolResult.success(result);
                 } catch (NiagaraSecurity.McpSecurityException e) {
-                    return McpToolResult.error(e.getMessage());
+                    return securityErrorResult(e, "ord");
                 } catch (Throwable e) {
                     LOG.warning("nmcp.component.children error for " + ord + ": " + e.getMessage());
                     return McpToolResult.error("Error listing children: " + e.getMessage());
@@ -269,21 +272,22 @@ public final class NiagaraComponentTools {
             @Override public McpToolResult call(Map<String, Object> arguments, Context cx) {
                 String ord = getStringArg(arguments, "ord");
                 if (ord == null) return McpToolResult.error("Missing required argument: ord");
+                String normalizedOrd = normalizeOrd(ord);
                 try {
-                    security.checkAllowlist(ord);
+                    security.checkAllowlist(normalizedOrd);
                     // TODO: Replace with actual ORD resolution
-                    BComponent comp = resolveComponent(ord, cx);
+                    BComponent comp = resolveComponent(normalizedOrd, cx);
                     if (comp == null) {
-                        return McpToolResult.error("ORD not found: " + ord);
+                        return McpToolResult.error("ORD not found: " + normalizedOrd);
                     }
                     List<Object> slots = buildSlotList(comp, cx);
                     Map<String, Object> result = NiagaraJson.obj(
-                            "ord",   ord,
+                            "ord",   normalizedOrd,
                             "slots", slots
                     );
                     return McpToolResult.success(result);
                 } catch (NiagaraSecurity.McpSecurityException e) {
-                    return McpToolResult.error(e.getMessage());
+                    return securityErrorResult(e, "ord");
                 } catch (Throwable e) {
                     LOG.warning("nmcp.component.slots error for " + ord + ": " + e.getMessage());
                     return McpToolResult.error("Error listing slots: " + e.getMessage());
@@ -323,22 +327,23 @@ public final class NiagaraComponentTools {
                 if (root == null || root.isEmpty()) {
                     root = "station:|slot:/Drivers";
                 }
+                String normalizedRoot = normalizeOrd(root);
                 Integer limit = getIntArg(arguments, "limit");
                 int effectiveLimit = security.effectiveLimit(limit != null ? limit : Integer.valueOf(50));
                 try {
-                    security.checkAllowlist(root);
-                    BComponent comp = resolveComponent(root, cx);
+                    security.checkAllowlist(normalizedRoot);
+                    BComponent comp = resolveComponent(normalizedRoot, cx);
                     if (comp == null) {
-                        return McpToolResult.error("ORD not found: " + root);
+                        return McpToolResult.error("ORD not found: " + normalizedRoot);
                     }
                     List<Object> matches = new ArrayList<>();
-                    searchComponents(comp, root, nameFilter, typeFilter, matches, effectiveLimit, cx);
+                    searchComponents(comp, normalizedRoot, nameFilter, typeFilter, matches, effectiveLimit, cx);
                     return McpToolResult.success(NiagaraJson.obj(
-                            "root", root,
+                            "root", normalizedRoot,
                             "count", matches.size(),
                             "components", matches));
                 } catch (NiagaraSecurity.McpSecurityException e) {
-                    return McpToolResult.error(e.getMessage());
+                    return securityErrorResult(e, "root");
                 } catch (Throwable e) {
                     LOG.warning("nmcp.component.search error for " + root + ": " + e.getMessage());
                     return McpToolResult.error("Error searching components: " + e.getMessage());
@@ -360,12 +365,50 @@ public final class NiagaraComponentTools {
      */
     private BComponent resolveComponent(String ord, Context cx) {
         try {
-            Object resolved = BOrd.make(ord).get(null, cx);
+            Object resolved = BOrd.make(normalizeOrd(ord)).get(null, cx);
             return (resolved instanceof BComponent) ? (BComponent) resolved : null;
         } catch (Throwable e) {
             LOG.warning("Failed to resolve ORD " + ord + ": " + e.getMessage());
             return null;
         }
+    }
+
+    private McpToolResult securityErrorResult(NiagaraSecurity.McpSecurityException e, String path) {
+        int code = e.getCode();
+        if (code == McpErrors.PATH_NOT_ALLOWLISTED) {
+            return McpToolResult.error(
+                    e.getMessage(),
+                    "NMCP_PATH_NOT_ALLOWLISTED",
+                    path,
+                    "Use an ORD under an allowlisted root (see resources/list).",
+                    new ArrayList<Object>(security.getAllowlistedRoots()));
+        }
+        if (code == McpErrors.INVALID_PARAMS) {
+            return McpToolResult.error(
+                    e.getMessage(),
+                    "NMCP_VALIDATION_INVALID_PARAMS",
+                    path,
+                    "Provide a non-empty ORD argument.",
+                    Collections.emptyList());
+        }
+        return McpToolResult.error(
+                e.getMessage(),
+                "NMCP_SECURITY_ERROR",
+                path,
+                "Check MCP security settings and the requested path.",
+                Collections.emptyList());
+    }
+
+    private String normalizeOrd(String ord) {
+        if (ord == null) {
+            return null;
+        }
+        String trimmed = ord.trim();
+        int stationIndex = trimmed.indexOf("station:|");
+        if (stationIndex >= 0) {
+            return trimmed.substring(stationIndex);
+        }
+        return trimmed;
     }
 
     private void searchComponents(BComponent comp, String compOrd,

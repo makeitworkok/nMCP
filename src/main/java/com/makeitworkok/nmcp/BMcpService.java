@@ -41,7 +41,7 @@ public class BMcpService extends BWebServlet {
     public static final Property runtimeProfile = newProperty(Flags.HIDDEN, BString.make(""), null);
 
     public static final Type TYPE = Sys.loadType(BMcpService.class);
-    public static final String MODULE_VERSION = "0.8.0";
+    public static final String MODULE_VERSION = "0.8.1";
 
     private boolean enabled = true;
     private String endpointPath = "/nmcp";
@@ -58,6 +58,7 @@ public class BMcpService extends BWebServlet {
     private String detectedPlatformVersion = "unknown";
     private boolean eulaOverrideUsed = false;
 
+    private NiagaraSecurity security;
     private McpToolRegistry registry;
     private McpJsonRpcHandler handler;
 
@@ -103,11 +104,11 @@ public class BMcpService extends BWebServlet {
         }
 
         List<String> roots = parseRoots(allowlistedRoots);
-        NiagaraSecurity security = new NiagaraSecurity(isReadOnly(), allowBql, maxResults, roots);
+        this.security = new NiagaraSecurity(isReadOnly(), allowBql, maxResults, roots);
 
         registry = new McpToolRegistry();
-        registerTools(security);
-        handler = new McpJsonRpcHandler(registry, security, MODULE_VERSION);
+        registerTools(this.security);
+        handler = new McpJsonRpcHandler(registry, this.security, MODULE_VERSION);
         LOG.info("BMcpService: registered MCP endpoint at /" + servletName);
     }
 
@@ -122,6 +123,7 @@ public class BMcpService extends BWebServlet {
         if (registry != null) {
             registry.clear();
         }
+        security = null;
         registry = null;
         handler = null;
     }
@@ -708,7 +710,12 @@ public class BMcpService extends BWebServlet {
     public void    setEndpointPath(String v) { endpointPath = v; }
 
     public boolean getReadOnly()          { return getBoolean(readOnly); }
-    public void    setReadOnly(boolean v) { setBoolean(readOnly, v, null); }
+    public void    setReadOnly(boolean v) {
+        setBoolean(readOnly, v, null);
+        if (security != null) {
+            security.setReadOnly(v);
+        }
+    }
     public boolean isReadOnly()           { return getReadOnly(); }
 
     public String  getRuntimeProfile() {

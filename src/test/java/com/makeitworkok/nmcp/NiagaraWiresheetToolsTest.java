@@ -29,15 +29,16 @@ class NiagaraWiresheetToolsTest {
     void wiresheetTools_namesAndCount() {
         NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
         List<McpTool> list = tools.tools();
-        assertEquals(4, list.size());
+        assertEquals(5, list.size());
         assertEquals("nmcp.wiresheet.plan", list.get(0).name());
         assertEquals("nmcp.wiresheet.diff", list.get(1).name());
         assertEquals("nmcp.wiresheet.apply", list.get(2).name());
-        assertEquals("nmcp.wiresheet.links", list.get(3).name());
+        assertEquals("nmcp.wiresheet.schema", list.get(3).name());
+        assertEquals("nmcp.wiresheet.links", list.get(4).name());
     }
 
     @Test
-    void plan_returnsValidFalse_forStrictNonControlType() {
+    void plan_rejectsStrictNonControlType_withStructuredError() {
         NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
         McpTool plan = tools.tools().get(0);
 
@@ -53,9 +54,11 @@ class NiagaraWiresheetToolsTest {
         args.put("operations", Collections.<Object>singletonList(createOp));
 
         McpToolResult result = plan.call(args, null);
-        assertFalse(result.isError());
-        assertTrue(result.getContent().contains("\"valid\":false"));
-        assertTrue(result.getContent().contains("unsupported componentType"));
+        assertTrue(result.isError());
+        Map<String, Object> payload = parseErrorPayload(result);
+        assertEquals("NMCP_VALIDATION_INVALID_ENUM", payload.get("code"));
+        assertEquals("arguments.operations[0].componentType", payload.get("path"));
+        assertTrue(String.valueOf(payload.get("error")).contains("unsupported componentType"));
     }
 
     @Test
@@ -70,6 +73,10 @@ class NiagaraWiresheetToolsTest {
         McpToolResult result = diff.call(args, null);
         assertTrue(result.isError());
         assertTrue(result.getErrorMessage().contains("allowlisted"));
+        Map<String, Object> payload = parseErrorPayload(result);
+        assertEquals("NMCP_PATH_NOT_ALLOWLISTED", payload.get("code"));
+        assertEquals("arguments.rootOrd", payload.get("path"));
+        assertTrue(String.valueOf(payload.get("hint")).contains("allowlisted roots"));
     }
 
     @Test
@@ -136,6 +143,132 @@ class NiagaraWiresheetToolsTest {
         McpToolResult result = apply.call(args, null);
         assertTrue(result.isError());
         assertTrue(result.getErrorMessage().contains("read-only"));
+        Map<String, Object> payload = parseErrorPayload(result);
+        assertEquals("NMCP_WRITE_DISABLED", payload.get("code"));
+        assertEquals("arguments.dryRun", payload.get("path"));
+    }
+
+    @Test
+    void plan_rejectsMissingOperationType_withStructuredGuidance() {
+        NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
+        McpTool plan = tools.tools().get(0);
+
+        Map<String, Object> op = new LinkedHashMap<>();
+        op.put("parentOrd", "station:|slot:/Drivers/Net");
+        op.put("name", "Point1");
+        op.put("componentType", "control:NumericWritable");
+
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("rootOrd", "station:|slot:/Drivers");
+        args.put("operations", Collections.<Object>singletonList(op));
+
+        McpToolResult result = plan.call(args, null);
+        assertTrue(result.isError());
+
+        Map<String, Object> payload = parseErrorPayload(result);
+        assertEquals("NMCP_VALIDATION_MISSING_FIELD", payload.get("code"));
+        assertEquals("arguments.operations[0].type", payload.get("path"));
+        assertTrue(String.valueOf(payload.get("hint")).contains("supported operation kinds"));
+        assertTrue(String.valueOf(payload.get("error")).contains("Missing required field"));
+
+        @SuppressWarnings("unchecked")
+        List<Object> allowed = (List<Object>) payload.get("allowedValues");
+        assertTrue(allowed.contains("createComponent"));
+        assertTrue(allowed.contains("setSlot"));
+        assertTrue(allowed.contains("link"));
+        assertTrue(allowed.contains("addCompositePin"));
+    }
+
+    @Test
+    void plan_rejectsInvalidOperationType_withAllowedValues() {
+        NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
+        McpTool plan = tools.tools().get(0);
+
+        Map<String, Object> op = new LinkedHashMap<>();
+        op.put("type", "bogusOp");
+
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("rootOrd", "station:|slot:/Drivers");
+        args.put("operations", Collections.<Object>singletonList(op));
+
+        McpToolResult result = plan.call(args, null);
+        assertTrue(result.isError());
+
+        Map<String, Object> payload = parseErrorPayload(result);
+        assertEquals("NMCP_VALIDATION_INVALID_ENUM", payload.get("code"));
+        assertEquals("arguments.operations[0].type", payload.get("path"));
+        assertTrue(String.valueOf(payload.get("error")).contains("unsupported type"));
+        @SuppressWarnings("unchecked")
+        List<Object> allowed = (List<Object>) payload.get("allowedValues");
+        assertEquals(4, allowed.size());
+    }
+
+    @Test
+    void plan_rejectsCreateComponentMissingRequiredFields() {
+        NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
+        McpTool plan = tools.tools().get(0);
+
+        Map<String, Object> op = new LinkedHashMap<>();
+        op.put("type", "createComponent");
+        op.put("name", "Point1");
+        op.put("componentType", "control:NumericWritable");
+
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("rootOrd", "station:|slot:/Drivers");
+        args.put("operations", Collections.<Object>singletonList(op));
+
+        McpToolResult result = plan.call(args, null);
+        assertTrue(result.isError());
+        Map<String, Object> payload = parseErrorPayload(result);
+        assertEquals("NMCP_VALIDATION_MISSING_FIELD", payload.get("code"));
+        assertEquals("arguments.operations[0].parentOrd", payload.get("path"));
+    }
+
+    @Test
+    void plan_andApply_validPath_remainsOperational() {
+        NiagaraWiresheetTools tools = new NiagaraWiresheetTools(writableSecurity());
+        McpTool plan = tools.tools().get(0);
+        McpTool apply = tools.tools().get(2);
+
+        Map<String, Object> create = new LinkedHashMap<>();
+        create.put("type", "createComponent");
+        create.put("parentOrd", "station:|slot:/Drivers/Net");
+        create.put("name", "Point1");
+        create.put("componentType", "control:NumericWritable");
+
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("rootOrd", "station:|slot:/Drivers");
+        args.put("operations", Collections.<Object>singletonList(create));
+
+        McpToolResult planResult = plan.call(args, null);
+        assertFalse(planResult.isError());
+
+        McpToolResult applyResult = apply.call(args, null);
+        assertFalse(applyResult.isError());
+        Map<String, Object> parsed = NiagaraJson.parseObject(applyResult.getContent());
+        assertEquals(Boolean.TRUE, parsed.get("dryRun"));
+    }
+
+    @Test
+    void schemaTool_returnsAuthoritativeShapeAndSample() {
+        NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
+        McpTool schema = tools.tools().get(3);
+
+        McpToolResult result = schema.call(new LinkedHashMap<String, Object>(), null);
+        assertFalse(result.isError());
+
+        Map<String, Object> parsed = NiagaraJson.parseObject(result.getContent());
+        @SuppressWarnings("unchecked")
+        List<Object> operationTypes = (List<Object>) parsed.get("operationTypes");
+        assertTrue(operationTypes.contains("createComponent"));
+        assertTrue(operationTypes.contains("setSlot"));
+        assertTrue(operationTypes.contains("link"));
+        assertTrue(operationTypes.contains("addCompositePin"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> minimal = (Map<String, Object>) parsed.get("minimalValidPayload");
+        assertTrue(minimal.containsKey("rootOrd"));
+        assertTrue(minimal.containsKey("operations"));
     }
 
     @Test
@@ -270,7 +403,7 @@ class NiagaraWiresheetToolsTest {
     }
 
     @Test
-    void plan_kitControlGreaterThan_rejectedInStrictMode() {
+    void plan_kitControlGreaterThan_rejectedInStrictMode_withStructuredError() {
         NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
         McpTool plan = tools.tools().get(0);
 
@@ -286,11 +419,12 @@ class NiagaraWiresheetToolsTest {
         args.put("operations", Collections.<Object>singletonList(createOp));
 
         McpToolResult result = plan.call(args, null);
-        assertFalse(result.isError());
-        assertTrue(result.getContent().contains("\"valid\":false"),
-                "Strict mode should reject kitControl:GreaterThan");
-        assertTrue(result.getContent().contains("unsupported componentType"),
-                "Error message should mention unsupported componentType");
+        assertTrue(result.isError());
+        Map<String, Object> payload = parseErrorPayload(result);
+        assertEquals("NMCP_VALIDATION_INVALID_ENUM", payload.get("code"));
+        assertEquals("arguments.operations[0].componentType", payload.get("path"));
+        assertTrue(String.valueOf(payload.get("error")).contains("unsupported componentType"),
+            "Error message should mention unsupported componentType");
     }
 
     @Test
@@ -717,5 +851,11 @@ class NiagaraWiresheetToolsTest {
         Map<String, Object> first = (Map<String, Object>) normalized.get(0);
 
         assertEquals("in10", first.get("slot"));
+    }
+
+    private static Map<String, Object> parseErrorPayload(McpToolResult result) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> first = (Map<String, Object>) result.toMcpContent().get(0);
+        return NiagaraJson.parseObject(String.valueOf(first.get("text")));
     }
 }

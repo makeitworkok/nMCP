@@ -6,6 +6,8 @@ import javax.baja.sys.BComponent;
 import javax.baja.sys.Context;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,10 @@ import java.util.Map;
 public final class NiagaraWiresheetTools {
 
     private final NiagaraSecurity security;
+    private static final List<Object> ALLOWED_OPERATION_TYPES = Collections.unmodifiableList(
+            Arrays.<Object>asList("createComponent", "setSlot", "link", "addCompositePin"));
+    private static final Map<String, List<Object>> REQUIRED_FIELDS_BY_TYPE = buildRequiredFieldsByType();
+    private static final Map<String, List<Object>> OPTIONAL_FIELDS_BY_TYPE = buildOptionalFieldsByType();
 
     public NiagaraWiresheetTools(NiagaraSecurity security) {
         this.security = security;
@@ -29,9 +35,68 @@ public final class NiagaraWiresheetTools {
         list.add(wiresheetPlan());
         list.add(wiresheetDiff());
         list.add(wiresheetApply());
+        list.add(wiresheetSchema());
         list.add(wiresheetLinks());
         return list;
     }
+
+        private McpTool wiresheetSchema() {
+        return new McpTool() {
+            @Override public String name() { return "nmcp.wiresheet.schema"; }
+
+            @Override public String description() {
+            return "Returns authoritative wiresheet operation schema for autonomous clients. "
+                + "Read-only introspection tool.";
+            }
+
+            @Override public String inputSchema() {
+            return "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}";
+            }
+
+            @Override public McpToolResult call(Map<String, Object> arguments, Context cx) {
+            String sampleRoot = "station:|slot:/Drivers/sandbox";
+            List<Object> sampleOps = new ArrayList<>();
+            sampleOps.add(NiagaraJson.obj(
+                "type", "createComponent",
+                "parentOrd", sampleRoot,
+                "name", "SpaceTemperature",
+                "componentType", "control:NumericWritable"));
+            sampleOps.add(NiagaraJson.obj(
+                "type", "setSlot",
+                "componentOrd", sampleRoot + "/SpaceTemperature",
+                "slot", "in10",
+                "value", Double.valueOf(72.0)));
+            sampleOps.add(NiagaraJson.obj(
+                "type", "link",
+                "from", sampleRoot + "/SpaceTemperature/out",
+                "to", sampleRoot + "/CoolingCall/in10"));
+            sampleOps.add(NiagaraJson.obj(
+                "type", "addCompositePin",
+                "folderOrd", sampleRoot,
+                "pinName", "TemperatureIn",
+                "targetComponentOrd", sampleRoot + "/SpaceTemperature",
+                "targetSlot", "in10",
+                "direction", "in"));
+
+            Map<String, Object> operationSchema = new LinkedHashMap<>();
+            for (Object opTypeObj : ALLOWED_OPERATION_TYPES) {
+                String opType = String.valueOf(opTypeObj);
+                operationSchema.put(opType, NiagaraJson.obj(
+                    "required", REQUIRED_FIELDS_BY_TYPE.get(opType),
+                    "optional", OPTIONAL_FIELDS_BY_TYPE.get(opType)));
+            }
+
+            return McpToolResult.success(NiagaraJson.obj(
+                "operationTypes", ALLOWED_OPERATION_TYPES,
+                "operations", operationSchema,
+                "minimalValidPayload", NiagaraJson.obj(
+                    "rootOrd", sampleRoot,
+                    "strict", Boolean.TRUE,
+                    "dryRun", Boolean.TRUE,
+                    "operations", sampleOps)));
+            }
+        };
+        }
 
     private McpTool wiresheetLinks() {
         return new McpTool() {
@@ -107,18 +172,16 @@ public final class NiagaraWiresheetTools {
             }
 
             @Override public McpToolResult call(Map<String, Object> arguments, Context cx) {
-                ValidationResult vr;
-                try {
-                    vr = validate(arguments);
-                } catch (NiagaraSecurity.McpSecurityException e) {
-                    return McpToolResult.error(e.getMessage());
+                ValidationResult vr = validate(arguments);
+                if (!vr.errors.isEmpty()) {
+                    return validationError(vr.errors.get(0));
                 }
                 List<Map<String, Object>> plan = sortForExecution(vr.normalizedOperations);
                 return McpToolResult.success(NiagaraJson.obj(
                         "rootOrd", vr.rootOrd,
                         "strict", Boolean.valueOf(vr.strict),
-                        "valid", Boolean.valueOf(vr.errors.isEmpty()),
-                        "errors", vr.errors,
+                        "valid", Boolean.TRUE,
+                        "errors", new ArrayList<Object>(),
                         "warnings", vr.warnings,
                         "summary", NiagaraJson.obj(
                                 "operationCount", Integer.valueOf(vr.normalizedOperations.size()),
@@ -145,11 +208,9 @@ public final class NiagaraWiresheetTools {
             }
 
             @Override public McpToolResult call(Map<String, Object> arguments, Context cx) {
-                ValidationResult vr;
-                try {
-                    vr = validate(arguments);
-                } catch (NiagaraSecurity.McpSecurityException e) {
-                    return McpToolResult.error(e.getMessage());
+                ValidationResult vr = validate(arguments);
+                if (!vr.errors.isEmpty()) {
+                    return validationError(vr.errors.get(0));
                 }
 
                 List<Object> creates = new ArrayList<>();
@@ -171,8 +232,8 @@ public final class NiagaraWiresheetTools {
                 return McpToolResult.success(NiagaraJson.obj(
                         "rootOrd", vr.rootOrd,
                         "strict", Boolean.valueOf(vr.strict),
-                        "valid", Boolean.valueOf(vr.errors.isEmpty()),
-                        "errors", vr.errors,
+                    "valid", Boolean.TRUE,
+                    "errors", new ArrayList<Object>(),
                         "warnings", vr.warnings,
                         "creates", creates,
                         "updates", updates,
@@ -241,15 +302,9 @@ public final class NiagaraWiresheetTools {
             }
 
             @Override public McpToolResult call(Map<String, Object> arguments, Context cx) {
-                ValidationResult vr;
-                try {
-                    vr = validate(arguments);
-                } catch (NiagaraSecurity.McpSecurityException e) {
-                    return McpToolResult.error(e.getMessage());
-                }
-
+                ValidationResult vr = validate(arguments);
                 if (!vr.errors.isEmpty()) {
-                    return McpToolResult.error("Validation failed: " + vr.errors.get(0));
+                    return validationError(vr.errors.get(0));
                 }
 
                 Object rawDryRun = arguments.get("dryRun");
@@ -260,7 +315,10 @@ public final class NiagaraWiresheetTools {
                     try {
                         security.checkReadOnly();
                     } catch (NiagaraSecurity.McpSecurityException e) {
-                        return McpToolResult.error(e.getMessage());
+                        return securityError(
+                                e,
+                                "arguments.dryRun",
+                                "Set dryRun=true for planning, or set BMcpService.readOnly=false to allow writes.");
                     }
                 }
 
@@ -1949,49 +2007,87 @@ public final class NiagaraWiresheetTools {
                 + "\"required\":[\"rootOrd\",\"operations\"]}";
     }
 
-    private ValidationResult validate(Map<String, Object> arguments)
-            throws NiagaraSecurity.McpSecurityException {
-        String rootOrd = asString(arguments.get("rootOrd"));
-        if (rootOrd == null || rootOrd.trim().isEmpty()) {
-            throw new NiagaraSecurity.McpSecurityException(
-                    McpErrors.INVALID_PARAMS, "Missing required argument: rootOrd");
+    private ValidationResult validate(Map<String, Object> arguments) {
+        List<ValidationIssue> errors = new ArrayList<>();
+        List<Object> warnings = new ArrayList<>();
+        List<Map<String, Object>> normalized = new ArrayList<>();
+
+        if (arguments == null) {
+            errors.add(invalidShape(
+                    "arguments",
+                    "tools/call arguments must be an object",
+                    "Send an object with rootOrd and operations."));
+            return new ValidationResult(null, true, normalized, errors, warnings);
         }
-        security.checkAllowlist(rootOrd);
+
+        String rootOrd = asString(arguments.get("rootOrd"));
+        if (isBlank(rootOrd)) {
+            errors.add(missingField("arguments.rootOrd", "rootOrd", null,
+                    "Include an allowlisted rootOrd such as station:|slot:/Drivers."));
+            return new ValidationResult(rootOrd, true, normalized, errors, warnings);
+        }
+        try {
+            security.checkAllowlist(rootOrd);
+        } catch (NiagaraSecurity.McpSecurityException e) {
+            errors.add(securityIssue(
+                    e,
+                    "arguments.rootOrd",
+                    "Use a rootOrd under one of the allowlisted roots."));
+            return new ValidationResult(rootOrd, true, normalized, errors, warnings);
+        }
 
         Object rawStrict = arguments.get("strict");
         boolean strict = rawStrict == null ? true : asBoolean(rawStrict);
 
         Object rawOps = arguments.get("operations");
         if (!(rawOps instanceof List)) {
-            throw new NiagaraSecurity.McpSecurityException(
-                    McpErrors.INVALID_PARAMS, "Missing required argument: operations");
+            if (rawOps == null) {
+                errors.add(missingField("arguments.operations", "operations", null,
+                        "Provide an array of operation objects."));
+            } else {
+                errors.add(invalidShape(
+                        "arguments.operations",
+                        "operations must be an array",
+                        "Wrap operations in a JSON array."));
+            }
+            return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
         }
 
         List<?> ops = (List<?>) rawOps;
-        List<Object> errors = new ArrayList<>();
-        List<Object> warnings = new ArrayList<>();
-        List<Map<String, Object>> normalized = new ArrayList<>();
-
         for (int i = 0; i < ops.size(); i++) {
             Object raw = ops.get(i);
             if (!(raw instanceof Map)) {
-                errors.add("Operation at index " + i + " must be an object");
-                continue;
+                errors.add(invalidShape(
+                        operationPath(i),
+                        "Operation at index " + i + " must be an object",
+                        "Each operations entry must be a JSON object."));
+                return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
             }
             @SuppressWarnings("unchecked")
             Map<String, Object> op = (Map<String, Object>) raw;
             Map<String, Object> no = new LinkedHashMap<>();
             no.put("index", Integer.valueOf(i));
+            no.put("id", asString(op.get("id")));
 
             String type = asString(op.get("type"));
             no.put("type", type);
-            no.put("id", asString(op.get("id")));
 
-            if (!"createComponent".equals(type) && !"setSlot".equals(type)
-                    && !"link".equals(type) && !"addCompositePin".equals(type)) {
-                errors.add("Operation at index " + i + " has unsupported type: " + type);
-                normalized.add(no);
-                continue;
+            if (isBlank(type)) {
+                errors.add(missingField(
+                        operationFieldPath(i, "type"),
+                        "type",
+                        ALLOWED_OPERATION_TYPES,
+                        "Set type to one of the supported operation kinds."));
+                return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+            }
+
+            if (!ALLOWED_OPERATION_TYPES.contains(type)) {
+                errors.add(invalidEnum(
+                        operationFieldPath(i, "type"),
+                        "Operation at index " + i + " has unsupported type: " + type,
+                        ALLOWED_OPERATION_TYPES,
+                        "Use one of the allowed operation type values."));
+                return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
             }
 
             if ("createComponent".equals(type)) {
@@ -2005,31 +2101,43 @@ public final class NiagaraWiresheetTools {
                 if (facets != null) {
                     no.put("facets", facets);
                 }
-                require(i, "parentOrd", parentOrd, errors);
-                require(i, "name", name, errors);
-                require(i, "componentType", componentType, errors);
-                if (parentOrd != null && !parentOrd.isEmpty()) {
-                    security.checkAllowlist(parentOrd);
+                if (!requireStringField(i, "parentOrd", parentOrd, errors)) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                 }
-                if (componentType != null && !componentType.isEmpty()) {
-                    boolean isKnownPrefix = componentType.startsWith("control:")
-                            || componentType.startsWith("kitControl:")
-                            || componentType.startsWith("baja:")
-                            || componentType.startsWith("nre:");
-                    if (!isKnownPrefix) {
-                        if (strict) {
-                            errors.add("Operation at index " + i
-                                    + " uses unsupported componentType for strict mode: " + componentType
-                                    + " (pass strict:false to allow kitControl:/baja: types)");
-                        } else {
-                            warnings.add("Operation at index " + i
-                                    + " uses non-standard componentType: " + componentType);
-                        }
-                    } else if (strict && !componentType.startsWith("control:")) {
-                        errors.add("Operation at index " + i
-                                + " uses unsupported componentType for strict mode: " + componentType
-                                + " (pass strict:false to allow kitControl:/baja: types)");
+                if (!requireStringField(i, "name", name, errors)) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+                }
+                if (!requireStringField(i, "componentType", componentType, errors)) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+                }
+                if (!allowlistedOrError(parentOrd, operationFieldPath(i, "parentOrd"), errors,
+                        "Use a parentOrd under the allowlisted roots.")) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+                }
+                boolean isKnownPrefix = componentType.startsWith("control:")
+                        || componentType.startsWith("kitControl:")
+                        || componentType.startsWith("baja:")
+                        || componentType.startsWith("nre:");
+                if (!isKnownPrefix) {
+                    if (strict) {
+                        errors.add(invalidEnum(
+                                operationFieldPath(i, "componentType"),
+                                "Operation at index " + i
+                                        + " uses unsupported componentType for strict mode: " + componentType,
+                                Arrays.<Object>asList("control:*"),
+                                "Use control:* type, or pass strict:false to allow wider type prefixes."));
+                        return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                     }
+                    warnings.add("Operation at index " + i
+                            + " uses non-standard componentType: " + componentType);
+                } else if (strict && !componentType.startsWith("control:")) {
+                    errors.add(invalidEnum(
+                            operationFieldPath(i, "componentType"),
+                            "Operation at index " + i
+                                    + " uses unsupported componentType for strict mode: " + componentType,
+                            Arrays.<Object>asList("control:*"),
+                            "Set strict:false to permit kitControl:/baja:/nre: types."));
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                 }
             }
 
@@ -2045,13 +2153,29 @@ public final class NiagaraWiresheetTools {
                     no.put("priority", priority);
                 }
                 no.put("value", value);
-                require(i, "componentOrd", componentOrd, errors);
-                if (rawSlot == null && op.containsKey("priority") && priority == null) {
-                    errors.add("Operation at index " + i + " has invalid priority; expected integer 1-16");
+                if (!requireStringField(i, "componentOrd", componentOrd, errors)) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                 }
-                require(i, "slot", slot, errors);
-                if (componentOrd != null && !componentOrd.isEmpty()) {
-                    security.checkAllowlist(componentOrd);
+                if (rawSlot == null && op.containsKey("priority") && priority == null) {
+                    errors.add(invalidEnum(
+                            operationFieldPath(i, "priority"),
+                            "Operation at index " + i + " has invalid priority; expected integer 1-16",
+                            Arrays.<Object>asList("1", "2", "3", "4", "5", "6", "7", "8",
+                                    "9", "10", "11", "12", "13", "14", "15", "16"),
+                            "Set priority to an integer between 1 and 16."));
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+                }
+                if (value == null) {
+                    errors.add(missingField(
+                            operationFieldPath(i, "value"),
+                            "value",
+                            null,
+                            "Provide a concrete value for setSlot operations."));
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+                }
+                if (!allowlistedOrError(componentOrd, operationFieldPath(i, "componentOrd"), errors,
+                        "Use a componentOrd under the allowlisted roots.")) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                 }
             }
 
@@ -2060,13 +2184,19 @@ public final class NiagaraWiresheetTools {
                 String to = normalizeEndpoint(asString(op.get("to")), "in10");
                 no.put("from", from);
                 no.put("to", to);
-                require(i, "from", from, errors);
-                require(i, "to", to, errors);
-                if (from != null && !from.isEmpty()) {
-                    security.checkAllowlist(from);
+                if (!requireStringField(i, "from", from, errors)) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                 }
-                if (to != null && !to.isEmpty()) {
-                    security.checkAllowlist(to);
+                if (!requireStringField(i, "to", to, errors)) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+                }
+                if (!allowlistedOrError(from, operationFieldPath(i, "from"), errors,
+                        "Use a source endpoint under the allowlisted roots.")) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+                }
+                if (!allowlistedOrError(to, operationFieldPath(i, "to"), errors,
+                        "Use a destination endpoint under the allowlisted roots.")) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                 }
             }
 
@@ -2081,19 +2211,27 @@ public final class NiagaraWiresheetTools {
                 no.put("targetComponentOrd", targetComponentOrd);
                 no.put("targetSlot", targetSlot);
                 no.put("direction", direction);
-                require(i, "folderOrd", folderOrd, errors);
-                require(i, "pinName", pinName, errors);
-                require(i, "targetComponentOrd", targetComponentOrd, errors);
-                require(i, "targetSlot", targetSlot, errors);
-                if (direction == null || (!"in".equals(direction) && !"out".equals(direction))) {
-                    errors.add("Operation at index " + i
-                            + " addCompositePin requires direction: 'in' or 'out'");
+                if (!requireStringField(i, "folderOrd", folderOrd, errors)
+                        || !requireStringField(i, "pinName", pinName, errors)
+                        || !requireStringField(i, "targetComponentOrd", targetComponentOrd, errors)
+                        || !requireStringField(i, "targetSlot", targetSlot, errors)) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                 }
-                if (folderOrd != null && !folderOrd.isEmpty()) {
-                    security.checkAllowlist(folderOrd);
+                if (!"in".equals(direction) && !"out".equals(direction)) {
+                    errors.add(invalidEnum(
+                            operationFieldPath(i, "direction"),
+                            "Operation at index " + i + " addCompositePin requires direction: 'in' or 'out'",
+                            Arrays.<Object>asList("in", "out"),
+                            "Set direction to 'in' or 'out'."));
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                 }
-                if (targetComponentOrd != null && !targetComponentOrd.isEmpty()) {
-                    security.checkAllowlist(targetComponentOrd);
+                if (!allowlistedOrError(folderOrd, operationFieldPath(i, "folderOrd"), errors,
+                        "Use a folderOrd under the allowlisted roots.")) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+                }
+                if (!allowlistedOrError(targetComponentOrd, operationFieldPath(i, "targetComponentOrd"), errors,
+                        "Use a targetComponentOrd under the allowlisted roots.")) {
+                    return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
                 }
             }
 
@@ -2101,6 +2239,34 @@ public final class NiagaraWiresheetTools {
         }
 
         return new ValidationResult(rootOrd, strict, normalized, errors, warnings);
+    }
+
+    private boolean allowlistedOrError(String ord,
+                                       String path,
+                                       List<ValidationIssue> errors,
+                                       String hint) {
+        try {
+            security.checkAllowlist(ord);
+            return true;
+        } catch (NiagaraSecurity.McpSecurityException e) {
+            errors.add(securityIssue(e, path, hint));
+            return false;
+        }
+    }
+
+    private boolean requireStringField(int index,
+                                       String field,
+                                       String value,
+                                       List<ValidationIssue> errors) {
+        if (isBlank(value)) {
+            errors.add(missingField(
+                    operationFieldPath(index, field),
+                    field,
+                    null,
+                    "Populate operations[" + index + "]." + field + " with a non-empty value."));
+            return false;
+        }
+        return true;
     }
 
     private String normalizeEndpoint(String endpoint, String defaultSlot) {
@@ -2144,10 +2310,100 @@ public final class NiagaraWiresheetTools {
         return Integer.valueOf(p);
     }
 
-    private void require(int index, String field, String value, List<Object> errors) {
-        if (value == null || value.trim().isEmpty()) {
-            errors.add("Operation at index " + index + " missing required field: " + field);
+    private static final String CODE_VALIDATION_MISSING_FIELD = "NMCP_VALIDATION_MISSING_FIELD";
+    private static final String CODE_VALIDATION_INVALID_ENUM = "NMCP_VALIDATION_INVALID_ENUM";
+    private static final String CODE_VALIDATION_INVALID_SHAPE = "NMCP_VALIDATION_INVALID_SHAPE";
+    private static final String CODE_PATH_NOT_ALLOWLISTED = "NMCP_PATH_NOT_ALLOWLISTED";
+    private static final String CODE_WRITE_DISABLED = "NMCP_WRITE_DISABLED";
+
+    private McpToolResult validationError(ValidationIssue issue) {
+        return McpToolResult.error(
+                issue.message,
+                issue.code,
+                issue.path,
+                issue.hint,
+                issue.allowedValues);
+    }
+
+    private ValidationIssue missingField(String path,
+                                         String field,
+                                         List<Object> allowedValues,
+                                         String hint) {
+        return new ValidationIssue(
+                CODE_VALIDATION_MISSING_FIELD,
+                "Missing required field: " + field,
+                path,
+                hint,
+                allowedValues);
+    }
+
+    private ValidationIssue invalidEnum(String path,
+                                        String message,
+                                        List<Object> allowedValues,
+                                        String hint) {
+        return new ValidationIssue(
+                CODE_VALIDATION_INVALID_ENUM,
+                message,
+                path,
+                hint,
+                allowedValues);
+    }
+
+    private ValidationIssue invalidShape(String path,
+                                         String message,
+                                         String hint) {
+        return new ValidationIssue(
+                CODE_VALIDATION_INVALID_SHAPE,
+                message,
+                path,
+                hint,
+                null);
+    }
+
+    private ValidationIssue securityIssue(NiagaraSecurity.McpSecurityException e,
+                                          String path,
+                                          String hint) {
+        return new ValidationIssue(
+                mapSecurityCode(e),
+                e.getMessage(),
+                path,
+                hint,
+                null);
+    }
+
+    private McpToolResult securityError(NiagaraSecurity.McpSecurityException e,
+                                        String path,
+                                        String hint) {
+        ValidationIssue issue = securityIssue(e, path, hint);
+        return validationError(issue);
+    }
+
+    private String mapSecurityCode(NiagaraSecurity.McpSecurityException e) {
+        if (e == null) {
+            return "NMCP_UNKNOWN_ERROR";
         }
+        if (e.getCode() == McpErrors.PATH_NOT_ALLOWLISTED) {
+            return CODE_PATH_NOT_ALLOWLISTED;
+        }
+        if (e.getCode() == McpErrors.READONLY_VIOLATION) {
+            return CODE_WRITE_DISABLED;
+        }
+        if (e.getCode() == McpErrors.INVALID_PARAMS) {
+            return CODE_VALIDATION_MISSING_FIELD;
+        }
+        return "NMCP_SECURITY_ERROR";
+    }
+
+    private String operationPath(int index) {
+        return "arguments.operations[" + index + "]";
+    }
+
+    private String operationFieldPath(int index, String field) {
+        return operationPath(index) + "." + field;
+    }
+
+    private boolean isBlank(String text) {
+        return text == null || text.trim().isEmpty();
     }
 
     private List<Map<String, Object>> sortForExecution(List<Map<String, Object>> operations) {
@@ -2248,17 +2504,58 @@ public final class NiagaraWiresheetTools {
         return ord;
     }
 
+    private static Map<String, List<Object>> buildRequiredFieldsByType() {
+        Map<String, List<Object>> map = new LinkedHashMap<>();
+        map.put("createComponent", Arrays.<Object>asList("parentOrd", "name", "componentType"));
+        map.put("setSlot", Arrays.<Object>asList("componentOrd", "value"));
+        map.put("link", Arrays.<Object>asList("from", "to"));
+        map.put("addCompositePin", Arrays.<Object>asList(
+                "folderOrd", "pinName", "targetComponentOrd", "targetSlot", "direction"));
+        return Collections.unmodifiableMap(map);
+    }
+
+    private static Map<String, List<Object>> buildOptionalFieldsByType() {
+        Map<String, List<Object>> map = new LinkedHashMap<>();
+        map.put("createComponent", Arrays.<Object>asList("id", "facets"));
+        map.put("setSlot", Arrays.<Object>asList("id", "slot", "priority"));
+        map.put("link", Arrays.<Object>asList("id"));
+        map.put("addCompositePin", Arrays.<Object>asList("id"));
+        return Collections.unmodifiableMap(map);
+    }
+
+    private static final class ValidationIssue {
+        private final String code;
+        private final String message;
+        private final String path;
+        private final String hint;
+        private final List<Object> allowedValues;
+
+        private ValidationIssue(String code,
+                                String message,
+                                String path,
+                                String hint,
+                                List<Object> allowedValues) {
+            this.code = code;
+            this.message = message;
+            this.path = path;
+            this.hint = hint;
+            this.allowedValues = allowedValues == null
+                    ? new ArrayList<Object>()
+                    : new ArrayList<>(allowedValues);
+        }
+    }
+
     private static final class ValidationResult {
         private final String rootOrd;
         private final boolean strict;
         private final List<Map<String, Object>> normalizedOperations;
-        private final List<Object> errors;
+        private final List<ValidationIssue> errors;
         private final List<Object> warnings;
 
         private ValidationResult(String rootOrd,
                                  boolean strict,
                                  List<Map<String, Object>> normalizedOperations,
-                                 List<Object> errors,
+                                 List<ValidationIssue> errors,
                                  List<Object> warnings) {
             this.rootOrd = rootOrd;
             this.strict = strict;

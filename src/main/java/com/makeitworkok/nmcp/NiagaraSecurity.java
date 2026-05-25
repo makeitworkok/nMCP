@@ -32,7 +32,7 @@ public final class NiagaraSecurity {
             "DROP", "ALTER", "CREATE", "TRUNCATE"
     };
 
-    private final boolean readOnly;
+    private volatile boolean readOnly;
     private final boolean allowBql;
     private final int maxResults;
     private final List<String> allowlistedRoots;
@@ -60,6 +60,11 @@ public final class NiagaraSecurity {
             throw new McpSecurityException(McpErrors.READONLY_VIOLATION,
                     "Operation not permitted in read-only mode");
         }
+    }
+
+    /** Updates read-only mode at runtime (driven by BMcpService toggle). */
+    public void setReadOnly(boolean readOnly) {
+        this.readOnly = readOnly;
     }
 
     // -------------------------------------------------------------------------

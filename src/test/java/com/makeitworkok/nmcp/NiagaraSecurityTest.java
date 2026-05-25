@@ -72,6 +72,20 @@ class NiagaraSecurityTest {
         assertDoesNotThrow(() -> sec.checkAllowlist("station:|slot:/Config/Platforms"));
     }
 
+    @Test
+    void checkReadOnly_canBeToggledAtRuntime() {
+        NiagaraSecurity sec = new NiagaraSecurity(true, true, 500,
+                Arrays.asList("station:|slot:/Drivers"));
+
+        assertThrows(NiagaraSecurity.McpSecurityException.class, sec::checkReadOnly);
+
+        sec.setReadOnly(false);
+        assertDoesNotThrow(sec::checkReadOnly);
+
+        sec.setReadOnly(true);
+        assertThrows(NiagaraSecurity.McpSecurityException.class, sec::checkReadOnly);
+    }
+
     // -------------------------------------------------------------------------
     // checkBqlQuery
     // -------------------------------------------------------------------------
