@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # Lessons Learned
 
-This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, and v0.8.2.
+This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, v0.8.2, and v0.8.3.
 
 ---
 
@@ -563,3 +563,23 @@ format to match native Niagara haystack conventions (`h4:*` marker slots, `baja:
   2. Match `typeFilter` against both short type name and full type string.
   3. Treat blank filters as null/no-filter.
 - Live validation after restart confirmed parity: both `numeric` and `control:numeric` returned the same component set.
+
+---
+
+## v0.8.3 — BACnet 500 Hardening
+
+## 42. Catch `Throwable` on BACnet runtime paths to prevent servlet-level HTTP 500
+
+- Live validation showed `nmcp.bacnet.devices` and `nmcp.bacnet.discover` can throw `NoClassDefFoundError` on some station/runtime profiles when BACnet classes are not loadable.
+- Catching only `Exception` is insufficient because linkage/classloading failures extend `Error`, not `Exception`.
+- Practical fix:
+  1. Catch `Throwable` at the MCP tool boundary for BACnet call paths.
+  2. Return structured `McpToolResult.error(...)` including throwable type/message.
+  3. Preserve server logs with normalized ORD context for diagnostics.
+- Outcome: BACnet calls now return JSON-RPC tool errors over HTTP 200 instead of bubbling to servlet-level HTTP 500.
+
+## 43. Apply ORD normalization before allowlist checks for BACnet paths too
+
+- BACnet tools were originally checking allowlist on raw `networkOrd` values before stripping transport prefixes.
+- This could create mismatch behavior compared to other tools that normalize `local:|` and `foxwss:|` first.
+- Rule reinforcement: normalize ORD first, then apply allowlist and resolution consistently across all tool categories.

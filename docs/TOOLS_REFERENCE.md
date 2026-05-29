@@ -11,13 +11,13 @@ Sensitive slot names (`password`, `secret`, `token`, `key`, `credential`, `auth`
 - BMcpService `readOnly=false`: write-capable tools are allowed to run, still subject to allowlists and tool-specific validation.
 - This selector is persistent in station config and should be treated as an operational change-control toggle.
 
-This reference matches current branch behavior for v0.8.2.
+This reference matches current branch behavior for v0.8.3.
 
 ---
 
-## Tool Inventory (v0.8.2)
+## Tool Inventory (v0.8.3)
 
-v0.8.2 adds station schema export for agent memory stores and history provisioning on points, plus real runtime execution for `nmcp.bql.query`.
+v0.8.3 keeps the 39-tool surface and hardens BACnet runtime failure handling so `nmcp.bacnet.devices` and `nmcp.bacnet.discover` return structured MCP errors instead of HTTP 500 when BACnet runtime classes are unavailable.
 All tool names use the `nmcp.*` namespace.
 
 | Category | Tools |
@@ -71,7 +71,7 @@ curl -X POST http://127.0.0.1:8765/nmcp \
   "osVersion": "10.0",
   "overallCpuUsage": 7,
   "totalPhysicalMemory": 14626736,
-  "moduleVersion": "0.8.2",
+  "moduleVersion": "0.8.3",
   "readOnly": false
 }
 ```
@@ -668,7 +668,7 @@ Returns a synthesized operational briefing: alarms + fault summary + equipment s
 ```json
 {
   "stationName": "mcp",
-  "moduleVersion": "0.6.1",
+  "moduleVersion": "0.8.3",
   "timestamp": 1714346400000,
   "alarmSummary": {
     "totalQueried": 20,
@@ -1147,6 +1147,8 @@ Useful for validating applied link direction and persisted relation metadata.
 
 Lists BACnet devices **provisioned as station components** under a network ORD (child `BBacnetDevice` instances).
 
+**Runtime compatibility note:** if BACnet runtime classes are unavailable in the station profile, this tool returns a structured MCP error (`BACnet runtime error [...]`) rather than causing a servlet-level HTTP 500.
+
 **Arguments:**
 
 | Name | Type | Required | Description |
@@ -1169,6 +1171,8 @@ curl -X POST http://127.0.0.1:8765/nmcp \
 ### `nmcp.bacnet.discover`
 
 Returns the BACnet stack's **in-memory device registry** — all devices heard via WhoIs/IAm, including devices not yet provisioned as station components. Read-only; does not add devices to the station.
+
+**Runtime compatibility note:** if BACnet runtime classes are unavailable in the station profile, this tool returns a structured MCP error (`BACnet runtime error [...]`) rather than causing a servlet-level HTTP 500.
 
 **Arguments:**
 
@@ -1211,3 +1215,4 @@ Common error messages:
 | `ORD is not a BWeeklySchedule: ...` | Schedule ORD points to a non-weekly schedule |
 | `Missing required argument: <name>` | Required argument missing from call |
 | `Drivers tree not accessible` | `/Drivers` ORD not resolvable |
+| `BACnet runtime error [NoClassDefFoundError]: ...` | Station/runtime profile is missing BACnet classes needed by the BACnet tool path |

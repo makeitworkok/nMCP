@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # nMCP Roadmap
 
-**Current release: v0.8.2** — merged to `main`
+**Current release: v0.8.3** — merged to `main`
 
 ---
 
@@ -49,7 +49,7 @@
 - Full LLM-driven thermostat validation: 6 writable points + 4 kitControl logic blocks + 10 links across 3 apply calls
 - License headers across all source files
 
-### v0.5.2 — kitControl Expansion + Fixes ✅ Current
+### v0.5.2 — kitControl Expansion + Fixes ✅ Done
 - Full kitControl type set: 32 types including `LoopPoint`, `Counter`, `MinMaxAvg`, `Ramp`, all switches (`NumericSwitch`, `BooleanSwitch`, `EnumSwitch`), latches, selects, timers, `Derivative`, `Modulus`, `SquareRoot`, `Negative`, `Limiter`, `Hysteresis`, `AbsValue`, `Line`
 - `setSlot` named-setter fix: after generic method scan fails, tries `set + capitalize(slotName)` — resolves `proportionalConstant`, `integralConstant`, `derivativeConstant`, `countIncrement`
 - `BMuxSwitch` excluded from type map — not instantiatable
@@ -95,16 +95,21 @@
 
 ---
 
-### v0.8.1 — Autopilot Hardening + Write Gate Centralization ✅ Current
+### v0.8.1 — Autopilot Hardening + Write Gate Centralization ✅ Done
 - Deterministic structured validation errors for wiresheet plan/diff/apply (`code`, `message`, `path`, `hint`, `allowedValues`)
 - Added `nmcp.wiresheet.schema` for operation-shape introspection and one-retry client self-correction
 - Runtime `readOnly` gate now updates live through a mutable NiagaraSecurity policy propagated from BMcpService
 - Component allowlist failures now return structured security payloads (no fallback to unknown error)
 
-### v0.8.2 — Runtime BQL + History Provisioning + Search Filtering ✅ Current
+### v0.8.2 — Runtime BQL + History Provisioning + Search Filtering ✅ Done
 - `nmcp.bql.query` replaced TODO scaffolding with runtime BQL execution and reflective fallback diagnostics
 - `nmcp.history.provisionOnPoint` hardened for Niagara 4.15 history DB APIs with connection-based `createHistory(BHistoryConfig)` fallback and live-verified creation behavior
 - `nmcp.component.search` filtering normalized (`trim` + case-insensitive matching) and type filtering expanded to support qualified type expressions (for example `control:numeric`)
+
+### v0.8.3 — BACnet Runtime Hardening + Restart Workflow ✅ Current
+- `nmcp.bacnet.devices` and `nmcp.bacnet.discover` now catch runtime linkage/classloading failures and return structured MCP errors instead of servlet-level HTTP 500 responses.
+- BACnet ORDs are normalized before allowlist checks for consistency with other tool paths.
+- Added restart helper workflow (`temp/restart_and_wait.py`) to fire the sandbox one-shot restart, wait 60 seconds, and poll `nmcp.station.info` for recovery.
 
 ---
 

@@ -203,17 +203,19 @@ public final class NiagaraAlarmTools {
 
                                 try {
                                     BAckState state = record.getAckState();
-                                    if (state != null && "Pending Ack".equals(state.toString())) {
-                                        acknowledgeRecord(record, note, cx);
-                                        acked++;
-                                        ackedRecords.add(dedupeKey);
+                                    if (state != null && "Unacked".equals(state.toString())) {
+                                        if (acknowledgeRecord(record, note, cx, svc, conn)) {
+                                            acked++;
+                                            ackedRecords.add(dedupeKey);
+                                        }
                                     }
                                 } catch (Throwable e) {
                                     // If we can't read ack state, try to ack anyway.
                                     try {
-                                        acknowledgeRecord(record, note, cx);
-                                        acked++;
-                                        ackedRecords.add(dedupeKey);
+                                        if (acknowledgeRecord(record, note, cx, svc, conn)) {
+                                            acked++;
+                                            ackedRecords.add(dedupeKey);
+                                        }
                                     } catch (Throwable ignored2) {}
                                 }
                             }
@@ -243,23 +245,107 @@ public final class NiagaraAlarmTools {
         };
     }
 
-    /** Acknowledges a single alarm record, using reflection to call acknowledge(String, Context). */
-    private static void acknowledgeRecord(BAlarmRecord record, String note, Context cx) throws Throwable {
+    /**
+     * Acknowledges a single alarm record and returns true only when post-ack state is no longer Unacked.
+     */
+    private static boolean acknowledgeRecord(
+            BAlarmRecord record,
+            String note,
+            Context cx,
+            Object alarmService,
+            AlarmDbConnection conn) throws Throwable {
+        boolean invoked = false;
+
+        // Most deterministic path on Niagara 4.15: doAckAlarm(BAlarmRecord)
+        if (alarmService != null) {
+            for (java.lang.reflect.Method m : alarmService.getClass().getMethods()) {
+                if ("doAckAlarm".equals(m.getName())) {
+                    Class<?>[] p = m.getParameterTypes();
+                    if (p.length == 1 && p[0].isAssignableFrom(record.getClass())) {
+                        m.invoke(alarmService, record);
+                        persistAlarmRecordUpdate(conn, record);
+                        return !isUnacked(record);
+                    }
+                }
+            }
+        }
+
+        // Preferred path on Niagara 4.15: invoke BAlarmService.ackAlarm(BAlarmRecord)
+        if (alarmService != null) {
+            for (java.lang.reflect.Method m : alarmService.getClass().getMethods()) {
+                if ("ackAlarm".equals(m.getName())) {
+                    Class<?>[] p = m.getParameterTypes();
+                    if (p.length == 1 && p[0].isAssignableFrom(record.getClass())) {
+                        m.invoke(alarmService, record);
+                        invoked = true;
+                        break;
+                    }
+                }
+            }
+            if (invoked) {
+                persistAlarmRecordUpdate(conn, record);
+                return !isUnacked(record);
+            }
+        }
+
+        // Niagara 4.15 runtime provides ackAlarm(String)/ackAlarm() on BAlarmRecord.
+        for (java.lang.reflect.Method m : record.getClass().getMethods()) {
+            if ("ackAlarm".equals(m.getName())) {
+                Class<?>[] p = m.getParameterTypes();
+                if (p.length == 1 && String.class.equals(p[0])) {
+                    m.invoke(record, note);
+                    persistAlarmRecordUpdate(conn, record);
+                    return !isUnacked(record);
+                }
+                if (p.length == 0) {
+                    m.invoke(record);
+                    persistAlarmRecordUpdate(conn, record);
+                    return !isUnacked(record);
+                }
+            }
+        }
+
+        // Legacy fallback for runtimes exposing acknowledge(...) variants.
         for (java.lang.reflect.Method m : record.getClass().getMethods()) {
             if ("acknowledge".equals(m.getName())) {
                 Class<?>[] p = m.getParameterTypes();
                 if (p.length == 2 && String.class.equals(p[0]) && Context.class.isAssignableFrom(p[1])) {
                     m.invoke(record, note, cx);
-                    return;
+                    persistAlarmRecordUpdate(conn, record);
+                    return !isUnacked(record);
                 }
                 if (p.length == 1 && Context.class.isAssignableFrom(p[0])) {
                     m.invoke(record, cx);
-                    return;
+                    persistAlarmRecordUpdate(conn, record);
+                    return !isUnacked(record);
                 }
             }
         }
-        throw new UnsupportedOperationException(
-                "No acknowledge method on " + record.getClass().getSimpleName());
+        throw new UnsupportedOperationException("No acknowledge method on " + record.getClass().getSimpleName());
+    }
+
+    private static boolean isUnacked(BAlarmRecord record) {
+        try {
+            BAckState state = record.getAckState();
+            return state != null && "Unacked".equals(state.toString());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void persistAlarmRecordUpdate(AlarmDbConnection conn, BAlarmRecord record) {
+        if (conn == null || record == null) return;
+        try {
+            java.lang.reflect.Method update = conn.getClass().getMethod("update", record.getClass());
+            update.invoke(conn, record);
+        } catch (Throwable ignored) {
+            try {
+                java.lang.reflect.Method update = conn.getClass().getMethod("update", BAlarmRecord.class);
+                update.invoke(conn, record);
+            } catch (Throwable ignored2) {
+                // Some runtimes persist through service-level ack without explicit db update.
+            }
+        }
     }
 
     // -------------------------------------------------------------------------

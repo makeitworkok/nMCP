@@ -421,7 +421,7 @@ public final class NiagaraWriteTools {
 
         Object actionSlot = findActionSlot(comp, actionName);
         if (actionSlot != null) {
-            String slotResult = invokeActionSlot(actionSlot, barg, cx);
+            String slotResult = invokeActionSlot(comp, actionSlot, barg, cx);
             if (slotResult != null) {
                 return slotResult;
             }
@@ -476,6 +476,35 @@ public final class NiagaraWriteTools {
                             && Context.class.isAssignableFrom(m.getParameterTypes()[0])) {
                         m.invoke(comp, cx);
                         return "invoked via " + actionName + "(Context)";
+                    } else if (m.getParameterTypes().length == 1
+                            && !Context.class.isAssignableFrom(m.getParameterTypes()[0])) {
+                        Object converted = convertValueForType(barg, m.getParameterTypes()[0]);
+                        if (converted == UNSET) {
+                            continue;
+                        }
+                        if (barg == null && converted == null) {
+                            converted = createDefaultActionArg(m.getParameterTypes()[0], comp, actionSlot, cx);
+                        }
+                        if (converted == UNSET) {
+                            continue;
+                        }
+                        m.invoke(comp, converted);
+                        return "invoked via " + actionName + "(Value)";
+                    } else if (m.getParameterTypes().length == 2
+                            && !Context.class.isAssignableFrom(m.getParameterTypes()[0])
+                            && Context.class.isAssignableFrom(m.getParameterTypes()[1])) {
+                        Object converted = convertValueForType(barg, m.getParameterTypes()[0]);
+                        if (converted == UNSET) {
+                            continue;
+                        }
+                        if (barg == null && converted == null) {
+                            converted = createDefaultActionArg(m.getParameterTypes()[0], comp, actionSlot, cx);
+                        }
+                        if (converted == UNSET) {
+                            continue;
+                        }
+                        m.invoke(comp, converted, cx);
+                        return "invoked via " + actionName + "(Value, Context)";
                     }
                 } catch (Throwable e) {
                     LOG.fine(actionName + "() invocation failed: " + e);
@@ -566,7 +595,7 @@ public final class NiagaraWriteTools {
         return null;
     }
 
-    private String invokeActionSlot(Object actionSlot, Object barg, Context cx) {
+    private String invokeActionSlot(BComponent comp, Object actionSlot, Object barg, Context cx) {
         if (actionSlot == null) {
             return null;
         }
@@ -592,11 +621,23 @@ public final class NiagaraWriteTools {
                         if (converted == UNSET) {
                             continue;
                         }
+                        if (barg == null && converted == null) {
+                            converted = createDefaultActionArg(params[0], comp, actionSlot, cx);
+                        }
+                        if (converted == UNSET) {
+                            continue;
+                        }
                         m.invoke(actionSlot, converted);
                         return "invoked action slot via " + methodName + "(Value)";
                     }
                     if (params.length == 2 && isValueType(params[0]) && Context.class.isAssignableFrom(params[1])) {
                         Object converted = convertValueForType(barg, params[0]);
+                        if (converted == UNSET) {
+                            continue;
+                        }
+                        if (barg == null && converted == null) {
+                            converted = createDefaultActionArg(params[0], comp, actionSlot, cx);
+                        }
                         if (converted == UNSET) {
                             continue;
                         }
@@ -610,6 +651,70 @@ public final class NiagaraWriteTools {
         }
 
         return null;
+    }
+
+    private Object createDefaultActionArg(Class<?> targetType, BComponent comp, Object actionSlot, Context cx) {
+        if (targetType == null || targetType.isPrimitive()) {
+            return UNSET;
+        }
+
+        // Prefer Niagara action default parameter when available.
+        if (comp != null && actionSlot != null) {
+            for (Method m : comp.getClass().getMethods()) {
+                if (!"getActionParameterDefault".equals(m.getName())) {
+                    continue;
+                }
+                Class<?>[] p = m.getParameterTypes();
+                if (p.length != 1) {
+                    continue;
+                }
+                if (!p[0].isInstance(actionSlot)) {
+                    continue;
+                }
+                try {
+                    Object candidate = m.invoke(comp, actionSlot);
+                    if (candidate != null && targetType.isInstance(candidate)) {
+                        return candidate;
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+
+        // Try public DEFAULT constant.
+        try {
+            java.lang.reflect.Field f = targetType.getField("DEFAULT");
+            Object candidate = f.get(null);
+            if (candidate != null && targetType.isInstance(candidate)) {
+                return candidate;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        // Try static make() factory.
+        for (Method m : targetType.getMethods()) {
+            if (!"make".equals(m.getName())) {
+                continue;
+            }
+            if (m.getParameterTypes().length != 0) {
+                continue;
+            }
+            try {
+                Object candidate = m.invoke(null);
+                if (candidate != null && targetType.isInstance(candidate)) {
+                    return candidate;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+
+        // Final fallback: no-arg constructor.
+        try {
+            return targetType.getConstructor().newInstance();
+        } catch (Throwable ignored) {
+        }
+
+        return UNSET;
     }
 
     private boolean isValueType(Class<?> type) {
