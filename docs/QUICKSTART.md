@@ -98,7 +98,7 @@ Expected response (JSON with your auto-generated token):
 }
 ```
 
-Expected station startup logs for v0.8.2:
+Expected station startup logs for v0.8.3:
 
 - `BMcpService: detected Niagara platform version <x.y.z>`
 - On Niagara 4.13+: `EULA of the version 4.13 and greater forbids use of AI, see Section 3.1(q) for details.`
@@ -155,6 +155,19 @@ At minimum, verify these key tools are present:
 - `nmcp.wiresheet.links`
 - `nmcp.station.exportSchema`
 - `nmcp.history.provisionOnPoint`
+
+### Optional: automated restart verification loop
+
+If you're iterating deploy/restart cycles, use the helper script to avoid manual station checks:
+
+```bash
+python temp/restart_and_wait.py --base-url http://127.0.0.1:8765 --token <your-client-token>
+```
+
+Behavior:
+- invokes `nmcp.component.invokeAction` on `station:|slot:/Drivers/sandbox/Restart` (`action=fire`)
+- waits 60 seconds
+- polls `nmcp.station.info` until station is reachable (or timeout)
 
 ---
 

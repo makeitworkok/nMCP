@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # nMCP Roadmap
 
-**Current release: v0.8.2** — merged to `main`
+**Current release: v0.8.3** — merged to `main`
 
 ---
 
@@ -101,10 +101,15 @@
 - Runtime `readOnly` gate now updates live through a mutable NiagaraSecurity policy propagated from BMcpService
 - Component allowlist failures now return structured security payloads (no fallback to unknown error)
 
-### v0.8.2 — Runtime BQL + History Provisioning + Search Filtering ✅ Current
+### v0.8.2 — Runtime BQL + History Provisioning + Search Filtering ✅ Done
 - `nmcp.bql.query` replaced TODO scaffolding with runtime BQL execution and reflective fallback diagnostics
 - `nmcp.history.provisionOnPoint` hardened for Niagara 4.15 history DB APIs with connection-based `createHistory(BHistoryConfig)` fallback and live-verified creation behavior
 - `nmcp.component.search` filtering normalized (`trim` + case-insensitive matching) and type filtering expanded to support qualified type expressions (for example `control:numeric`)
+
+### v0.8.3 — BACnet Runtime Hardening + Restart Workflow ✅ Current
+- `nmcp.bacnet.devices` and `nmcp.bacnet.discover` now catch runtime linkage/classloading failures and return structured MCP errors instead of servlet-level HTTP 500 responses.
+- BACnet ORDs are normalized before allowlist checks for consistency with other tool paths.
+- Added restart helper workflow (`temp/restart_and_wait.py`) to fire the sandbox one-shot restart, wait 60 seconds, and poll `nmcp.station.info` for recovery.
 
 ---
 

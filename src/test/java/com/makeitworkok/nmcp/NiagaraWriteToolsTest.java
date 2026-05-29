@@ -207,6 +207,20 @@ class NiagaraWriteToolsTest {
         assertTrue(result.contains("released override via in8"));
     }
 
+    @Test
+    void invokeAction_activeUsesDefaultArgumentForSingleParamMethod() throws Exception {
+        NiagaraWriteTools tools = new NiagaraWriteTools(writeSecurity());
+        Method method = NiagaraWriteTools.class.getDeclaredMethod("invokeComponentAction", BComponent.class, String.class, Object.class, Context.class);
+        method.setAccessible(true);
+
+        FakeActiveComponent component = new FakeActiveComponent();
+        String result = (String) method.invoke(tools, component, "active", null, null);
+
+        assertTrue(component.invoked);
+        assertNotNull(component.arg);
+        assertTrue(result.contains("active(Value)"));
+    }
+
     // -------------------------------------------------------------------------
     // nmcp.station.restart — security checks
     // -------------------------------------------------------------------------
@@ -352,6 +366,21 @@ class NiagaraWriteToolsTest {
 
         public void invoke(Context cx) {
             invoked = true;
+        }
+    }
+
+    public static final class FakeOverrideArg {
+        public FakeOverrideArg() {
+        }
+    }
+
+    private static final class FakeActiveComponent extends BComponent {
+        private boolean invoked;
+        private FakeOverrideArg arg;
+
+        public void active(FakeOverrideArg value) {
+            this.invoked = true;
+            this.arg = value;
         }
     }
 }

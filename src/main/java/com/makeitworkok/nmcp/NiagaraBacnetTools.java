@@ -73,11 +73,11 @@ public final class NiagaraBacnetTools {
                     return McpToolResult.error("Missing required argument: networkOrd");
                 }
                 Integer limit = getIntArg(arguments, "limit");
+                String normalizedOrd = normalizeOrd(networkOrd);
 
                 try {
-                    security.checkAllowlist(networkOrd);
+                    security.checkAllowlist(normalizedOrd);
                     int effectiveLimit = security.effectiveLimit(limit);
-                    String normalizedOrd = normalizeOrd(networkOrd);
 
                     Object resolved = BOrd.make(normalizedOrd).get(null, cx);
                     if (!(resolved instanceof BComponent)) {
@@ -87,6 +87,9 @@ public final class NiagaraBacnetTools {
 
                     List<Object> deviceList = new ArrayList<>();
                     BComponent[] children = network.getChildComponents();
+                    if (children == null) {
+                        children = new BComponent[0];
+                    }
                     for (BComponent child : children) {
                         if (deviceList.size() >= effectiveLimit) break;
                         if (!(child instanceof BBacnetDevice)) continue;
@@ -102,9 +105,8 @@ public final class NiagaraBacnetTools {
 
                 } catch (NiagaraSecurity.McpSecurityException e) {
                     return McpToolResult.error(e.getMessage());
-                } catch (Exception e) {
-                    LOG.warning("nmcp.bacnet.devices error for " + networkOrd + ": " + e.getMessage());
-                    return McpToolResult.error("BACnet device query error: " + e.getMessage());
+                } catch (Throwable e) {
+                    return bacnetRuntimeError("nmcp.bacnet.devices", networkOrd, normalizedOrd, e);
                 }
             }
         };
@@ -141,11 +143,11 @@ public final class NiagaraBacnetTools {
                     return McpToolResult.error("Missing required argument: networkOrd");
                 }
                 Integer limit = getIntArg(arguments, "limit");
+                String normalizedOrd = normalizeOrd(networkOrd);
 
                 try {
-                    security.checkAllowlist(networkOrd);
+                    security.checkAllowlist(normalizedOrd);
                     int effectiveLimit = security.effectiveLimit(limit);
-                    String normalizedOrd = normalizeOrd(networkOrd);
 
                     Object resolved = BOrd.make(normalizedOrd).get(null, cx);
                     if (!(resolved instanceof BBacnetNetwork)) {
@@ -155,6 +157,9 @@ public final class NiagaraBacnetTools {
                     BBacnetNetwork network = (BBacnetNetwork) resolved;
 
                     BBacnetDevice[] allDevices = network.getDeviceList();
+                    if (allDevices == null) {
+                        allDevices = new BBacnetDevice[0];
+                    }
                     List<Object> deviceList = new ArrayList<>();
                     for (BBacnetDevice dev : allDevices) {
                         if (deviceList.size() >= effectiveLimit) break;
@@ -169,9 +174,8 @@ public final class NiagaraBacnetTools {
 
                 } catch (NiagaraSecurity.McpSecurityException e) {
                     return McpToolResult.error(e.getMessage());
-                } catch (Exception e) {
-                    LOG.warning("nmcp.bacnet.discover error for " + networkOrd + ": " + e.getMessage());
-                    return McpToolResult.error("BACnet discover error: " + e.getMessage());
+                } catch (Throwable e) {
+                    return bacnetRuntimeError("nmcp.bacnet.discover", networkOrd, normalizedOrd, e);
                 }
             }
         };
@@ -235,5 +239,13 @@ public final class NiagaraBacnetTools {
             try { return Integer.parseInt((String) v); } catch (NumberFormatException ignored) {}
         }
         return null;
+    }
+
+    private McpToolResult bacnetRuntimeError(String toolName, String rawOrd, String normalizedOrd, Throwable e) {
+        String type = e.getClass().getSimpleName();
+        String msg = e.getMessage() != null ? e.getMessage() : "(no message)";
+        LOG.warning(toolName + " error for " + rawOrd + " [normalized=" + normalizedOrd + "] "
+                + type + ": " + msg);
+        return McpToolResult.error("BACnet runtime error [" + type + "]: " + msg);
     }
 }

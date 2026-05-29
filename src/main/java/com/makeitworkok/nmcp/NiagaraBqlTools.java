@@ -139,6 +139,13 @@ public final class NiagaraBqlTools {
     }
 
     private QueryExecution executeBql(String query, int effectiveLimit, Context cx) throws Exception {
+        // Niagara 4.15 commonly supports ORD-based BQL execution even when query-object
+        // execute/cursor methods are absent, so prefer ORD resolution first.
+        CursorExecution ordCursor = executeViaOrd(query, cx);
+        if (ordCursor != null && ordCursor.cursor != null) {
+            return readCursorRows(ordCursor, effectiveLimit);
+        }
+
         Class<?> bqlClass = findBqlClass();
         if (bqlClass == null) {
             throw new IllegalStateException("BQL runtime class not found (tried javax.baja.bql and javax.baja.query variants)");
@@ -146,11 +153,15 @@ public final class NiagaraBqlTools {
 
         Object bqlQuery = createBqlQuery(bqlClass, query);
         CursorExecution cursorExecution = executeQueryToCursor(bqlQuery, query, cx);
-        Object cursor = cursorExecution.cursor;
-        if (cursor == null) {
+        if (cursorExecution.cursor == null) {
             return new QueryExecution(new ArrayList<Object>(), false, cursorExecution.engineClass);
         }
 
+        return readCursorRows(cursorExecution, effectiveLimit);
+    }
+
+    private QueryExecution readCursorRows(CursorExecution cursorExecution, int effectiveLimit) throws Exception {
+        Object cursor = cursorExecution.cursor;
         List<Object> rows = new ArrayList<>();
         boolean truncated = false;
         Method nextMethod = findMethod(cursor.getClass(), "next");
@@ -250,11 +261,6 @@ public final class NiagaraBqlTools {
         CursorExecution engineCursor = executeViaBqlEngine(query, cx);
         if (engineCursor != null) {
             return engineCursor;
-        }
-
-        CursorExecution ordCursor = executeViaOrd(query, cx);
-        if (ordCursor != null) {
-            return ordCursor;
         }
 
         Map<String, Object> diagnostics = describeClass(bqlQuery.getClass());
