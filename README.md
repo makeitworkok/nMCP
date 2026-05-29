@@ -148,17 +148,19 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full walkthrough.
 | Tool | Category | Description |
 |---|---|---|
 | `nmcp.station.info` | Station | Station name, platform version, read-only flag |
+| `nmcp.station.exportSchema` | Station | Export station topology schema for local memory stores |
 | `nmcp.component.read` | Component | Read component slots by ORD |
 | `nmcp.component.children` | Component | List immediate children of an ORD |
 | `nmcp.component.slots` | Component | List all slots (sensitive values masked) |
 | `nmcp.component.search` | Component | Search components by name/type under a root |
-| `nmcp.bql.query` | BQL | SELECT-only BQL query |
+| `nmcp.bql.query` | BQL | Runtime-executed SELECT-only BQL query |
 | `nmcp.alarm.query` | Alarms | Recent alarm records (all states) |
 | `nmcp.alarm.active` | Alarms | Currently active / unacknowledged alarms |
 | `nmcp.alarm.ack` | Alarms | Acknowledge alarms by source ORD (write-gated) |
 | `nmcp.history.list` | History | Available history IDs and display names |
 | `nmcp.history.read` | History | Time-series records for a history by ID |
 | `nmcp.trend.summary` | History | Aggregated trend min/max/first/last over a time window |
+| `nmcp.history.provisionOnPoint` | History | Create/configure history and attach to a point (write-gated) |
 | `nmcp.point.read` | Points | Current value of a single proxy point |
 | `nmcp.point.search` | Points | Find points by name or type substring |
 | `nmcp.equipment.status` | Equipment | All devices across all driver networks |
@@ -174,6 +176,7 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full walkthrough.
 | `nmcp.haystack.applyRules` | Haystack | Apply haystack tags from ruleset (write mode required) |
 | `nmcp.haystack.scanPoints` | Haystack | Discover points and report existing haystack tags |
 | `nmcp.haystack.suggestTags` | Haystack | Suggest haystack tags for points + generate ready-to-use ruleset |
+| `nmcp.wiresheet.schema` | Wiresheet | Return authoritative wiresheet operation schema for client payload generation |
 | `nmcp.wiresheet.plan` | Wiresheet | Validate and normalize declarative wiresheet operations |
 | `nmcp.wiresheet.diff` | Wiresheet | Deterministic desired-state diff for operation payloads |
 | `nmcp.wiresheet.apply` | Wiresheet | Write-gated execution report with `dryRun` default true |
@@ -184,7 +187,7 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full walkthrough.
 | `nmcp.station.restart` | Write | Request a controlled station restart (write-gated) |
 | `nmcp.driver.discoverAndAdd` | Write | Trigger driver network discovery (write-gated) |
 
-Total tools in v0.8.0: 36.
+Total tools in v0.8.2: 39.
 
 Full argument and response documentation: [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md)
 
@@ -276,7 +279,8 @@ Any ORD that does not start with one of these roots is immediately rejected.
 | v0.6.2 — BACnet Discovery | ✅ Done | `bacnet.discover` — read-only BACnet stack device registry via `BBacnetNetwork.getDeviceList()` (all WhoIs/IAm-heard devices, unprovisioned included); `bacnet.devices` rewritten from stub to real child-component traversal; 5 new BACnet stubs; 36 tools, 185 unit tests |
 | v0.7.0 — Version Check + Hidden Properties | ✅ Done | Startup now logs detected Niagara version and emits warning text for 4.13+ stations: "EULA of the version 4.13 and greater forbids use of AI, see Section 3.1(q) for details."; `enabled` and `readOnly` hidden by default for cleaner Workbench UI; 36 tools, 185 unit tests |
 | v0.8.0 — Slot Sheet Cleanup | ✅ Done | Cleaner Workbench slot sheet; legacy declared properties removed in favor of `runtimeProfile` override path |
-| v0.8.1 — Autopilot Hardening + Write Gate Centralization | ✅ Current | Deterministic structured validation errors for wiresheet operations, schema introspection for client self-correction, and runtime-propagated `readOnly` toggle so write access is controlled only by BMcpService |
+| v0.8.1 — Autopilot Hardening + Write Gate Centralization | ✅ Done | Deterministic structured validation errors for wiresheet operations, schema introspection for client self-correction, and runtime-propagated `readOnly` toggle so write access is controlled only by BMcpService |
+| v0.8.2 — Schema Export + Runtime BQL + History Provisioning | ✅ Current | Added `station.exportSchema` for station topology export, replaced BQL stub with runtime execution in `bql.query`, and added write-gated `history.provisionOnPoint` |
 | v0.9+ — Roadmap | 🔜 Planned | Object model enrichment, batch read, relationship traversal — see roadmap |
 
 

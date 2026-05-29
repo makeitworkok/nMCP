@@ -11,32 +11,32 @@ Sensitive slot names (`password`, `secret`, `token`, `key`, `credential`, `auth`
 - BMcpService `readOnly=false`: write-capable tools are allowed to run, still subject to allowlists and tool-specific validation.
 - This selector is persistent in station config and should be treated as an operational change-control toggle.
 
-This reference matches current branch behavior for v0.8.1.
+This reference matches current branch behavior for v0.8.2.
 
 ---
 
-## Tool Inventory (v0.8.1)
+## Tool Inventory (v0.8.2)
 
-v0.8.1 includes slot sheet cleanup plus autopilot hardening updates: deterministic structured validation errors, wiresheet schema introspection for client recovery, and centralized runtime write gating via BMcpService `readOnly`.
+v0.8.2 adds station schema export for agent memory stores and history provisioning on points, plus real runtime execution for `nmcp.bql.query`.
 All tool names use the `nmcp.*` namespace.
 
 | Category | Tools |
 |---|---|
-| Station | `nmcp.station.info` |
+| Station | `nmcp.station.info`, `nmcp.station.exportSchema` |
 | Components | `nmcp.component.read`, `nmcp.component.children`, `nmcp.component.slots`, `nmcp.component.search` |
 | BQL | `nmcp.bql.query` |
 | Alarms | `nmcp.alarm.query`, `nmcp.alarm.active`, `nmcp.alarm.ack` |
-| History | `nmcp.history.list`, `nmcp.history.read`, `nmcp.trend.summary` |
+| History | `nmcp.history.list`, `nmcp.history.read`, `nmcp.trend.summary`, `nmcp.history.provisionOnPoint` |
 | BACnet | `nmcp.bacnet.devices`, `nmcp.bacnet.discover` |
 | Schedules | `nmcp.schedule.read`, `nmcp.schedule.list`, `nmcp.schedule.write` |
 | Points | `nmcp.point.read`, `nmcp.point.search` |
 | Equipment | `nmcp.equipment.status` |
 | Diagnostics | `nmcp.fault.scan`, `nmcp.building.brief` |
 | Haystack | `nmcp.haystack.getRuleset`, `nmcp.haystack.setRuleset`, `nmcp.haystack.applyRules`, `nmcp.haystack.scanPoints`, `nmcp.haystack.suggestTags` |
-| Wiresheet | `nmcp.wiresheet.plan`, `nmcp.wiresheet.diff`, `nmcp.wiresheet.apply`, `nmcp.wiresheet.links` |
+| Wiresheet | `nmcp.wiresheet.schema`, `nmcp.wiresheet.plan`, `nmcp.wiresheet.diff`, `nmcp.wiresheet.apply`, `nmcp.wiresheet.links` |
 | Write | `nmcp.point.write`, `nmcp.point.override`, `nmcp.component.invokeAction`, `nmcp.station.restart`, `nmcp.driver.discoverAndAdd` |
 
-Total: 36 tools.
+Total: 39 tools.
 
 ---
 
@@ -79,6 +79,56 @@ curl -X POST http://127.0.0.1:8765/nmcp \
 `platformVersion` is the canonical field. `niagaraVersion` is preserved as a compatibility alias.
 
 `stationName` and 'hostId' are sourced from the station first, then falls back to platform-service slots when station methods are unavailable.
+
+---
+
+### `nmcp.station.exportSchema`
+
+Exports a topology snapshot for agent memory stores under a root ORD. Returns a `station` envelope with metadata, summary, and optionally devices/points/schedules/histories/links.
+
+**Arguments:**
+
+| Name | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `rootOrd` | string | No | `station:|slot:/` | Root ORD scope |
+| `includePoints` | boolean | No | `true` | Include point definitions |
+| `includeDevices` | boolean | No | `true` | Include device definitions |
+| `includeSchedules` | boolean | No | `true` | Include schedule definitions |
+| `includeHistories` | boolean | No | `true` | Include history definitions |
+| `includeLinks` | boolean | No | `true` | Include direct source/target link endpoint pairs |
+
+**Example request:**
+```bash
+curl -X POST http://127.0.0.1:8765/nmcp \
+  -H "X-MCP-Token: <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmcp.station.exportSchema","arguments":{"rootOrd":"station:|slot:/Drivers","includeHistories":false}}}'
+```
+
+**Response shape (high-level):**
+```json
+{
+  "station": {
+    "metadata": {
+      "schemaVersion": "1.0",
+      "rootOrd": "station:|slot:/Drivers",
+      "truncated": false
+    },
+    "summary": {
+      "deviceCount": 12,
+      "pointCount": 340,
+      "scheduleCount": 4,
+      "historyCount": 0,
+      "linkCount": 87
+    },
+    "devices": [],
+    "points": [],
+    "schedules": [],
+    "histories": [],
+    "links": []
+  }
+}
+```
 
 ---
 
@@ -170,7 +220,7 @@ curl -X POST http://127.0.0.1:8765/nmcp \
 
 ### `nmcp.bql.query`
 
-Runs a read-only BQL SELECT query. Mutation keywords (`SET`, `DELETE`, `INSERT`, `UPDATE`, `DROP`, `CREATE`, `ALTER`, `EXECUTE`, `CALL`) are rejected immediately.
+Runs a read-only BQL SELECT query against the Niagara runtime. Mutation keywords (`SET`, `DELETE`, `INSERT`, `UPDATE`, `DROP`, `CREATE`, `ALTER`, `EXECUTE`, `CALL`) are rejected immediately.
 
 **Arguments:**
 
@@ -178,6 +228,11 @@ Runs a read-only BQL SELECT query. Mutation keywords (`SET`, `DELETE`, `INSERT`,
 |---|---|---|---|
 | `query` | string | Yes | BQL SELECT statement |
 | `limit` | integer | No | Max rows to return |
+
+**Returns:**
+- `query`, `limit`, `count`, `rows` (existing envelope)
+- `truncated` (boolean): true when result row count exceeded limit
+- `engine` (string): runtime BQL class resolved for execution
 
 **Example request:**
 ```bash
@@ -384,6 +439,71 @@ curl -X POST http://127.0.0.1:8765/nmcp \
   "endTime": 1714346400000
 }
 ```
+
+---
+
+### `nmcp.history.provisionOnPoint`
+
+**Write mode required.** Creates/configures a history and attaches it to a point in one call.
+
+**Status semantics (agent-facing):**
+- `configured` — at least one attachment/configuration operation applied.
+- `alreadyConfigured` — point already appears configured for the requested history.
+- `partial` — call executed but no concrete setter/slot path was applied on this point/runtime combination.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `pointOrd` | string | Yes | Point ORD to attach history to |
+| `historyId` | string | Yes | History identifier/name |
+| `enabled` | boolean | No | Enables history behavior on supported point types (default true) |
+| `sampleIntervalMs` | integer | No | Optional sample interval in milliseconds |
+| `retentionCount` | integer | No | Optional retention/capacity count |
+| `typeOptions` | object | No | Optional type-specific settings bag |
+
+**Example request:**
+```bash
+curl -X POST http://127.0.0.1:8765/nmcp \
+  -H "X-MCP-Token: <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmcp.history.provisionOnPoint","arguments":{"pointOrd":"station:|slot:/Drivers/Net/Device/ZoneTemp","historyId":"ZoneTempHistory","enabled":true,"sampleIntervalMs":60000}}}'
+```
+
+**Example response:**
+```json
+{
+  "status": "configured",
+  "createdHistory": false,
+  "pointOrd": "station:|slot:/Drivers/Net/Device/ZoneTemp",
+  "historyId": "ZoneTempHistory",
+  "enabled": true,
+  "sampleIntervalMs": 60000,
+  "retentionCount": null,
+  "details": [
+    "setHistoryId applied",
+    "history enabled flag applied"
+  ]
+}
+```
+
+---
+
+### `nmcp.wiresheet.schema`
+
+Returns the authoritative wiresheet operation schema for autonomous clients, including operation types, required/optional fields, and a minimal valid payload scaffold.
+
+**Arguments:** none
+
+**Example request:**
+```bash
+curl -X POST http://127.0.0.1:8765/nmcp \
+  -H "X-MCP-Token: <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmcp.wiresheet.schema","arguments":{}}}'
+```
+
+**Agent usage note:** call this first when generating `nmcp.wiresheet.plan/diff/apply` payloads to avoid schema drift and to recover from validation errors deterministically.
 
 ---
 

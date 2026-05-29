@@ -41,7 +41,7 @@ public class BMcpService extends BWebServlet {
     public static final Property runtimeProfile = newProperty(Flags.HIDDEN, BString.make(""), null);
 
     public static final Type TYPE = Sys.loadType(BMcpService.class);
-    public static final String MODULE_VERSION = "0.8.1";
+    public static final String MODULE_VERSION = "0.8.2";
 
     private boolean enabled = true;
     private String endpointPath = "/nmcp";
@@ -196,9 +196,11 @@ public class BMcpService extends BWebServlet {
 
     private void registerTools(NiagaraSecurity security) {
         new NiagaraComponentTools(security, MODULE_VERSION).tools().forEach(registry::register);
+        new NiagaraStationTools(security).tools().forEach(registry::register);
         new NiagaraBqlTools(security).tools().forEach(registry::register);
         new NiagaraAlarmTools(security).tools().forEach(registry::register);
         new NiagaraHistoryTools(security).tools().forEach(registry::register);
+        new NiagaraHistoryWriteTools(security).tools().forEach(registry::register);
         new NiagaraBacnetTools(security).tools().forEach(registry::register);
         new NiagaraScheduleTools(security).tools().forEach(registry::register);
         new NiagaraPointTools(security).tools().forEach(registry::register);
