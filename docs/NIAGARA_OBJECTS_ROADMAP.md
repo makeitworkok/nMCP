@@ -49,7 +49,7 @@
 - Full LLM-driven thermostat validation: 6 writable points + 4 kitControl logic blocks + 10 links across 3 apply calls
 - License headers across all source files
 
-### v0.5.2 — kitControl Expansion + Fixes ✅ Current
+### v0.5.2 — kitControl Expansion + Fixes ✅ Done
 - Full kitControl type set: 32 types including `LoopPoint`, `Counter`, `MinMaxAvg`, `Ramp`, all switches (`NumericSwitch`, `BooleanSwitch`, `EnumSwitch`), latches, selects, timers, `Derivative`, `Modulus`, `SquareRoot`, `Negative`, `Limiter`, `Hysteresis`, `AbsValue`, `Line`
 - `setSlot` named-setter fix: after generic method scan fails, tries `set + capitalize(slotName)` — resolves `proportionalConstant`, `integralConstant`, `derivativeConstant`, `countIncrement`
 - `BMuxSwitch` excluded from type map — not instantiatable
@@ -95,7 +95,7 @@
 
 ---
 
-### v0.8.1 — Autopilot Hardening + Write Gate Centralization ✅ Current
+### v0.8.1 — Autopilot Hardening + Write Gate Centralization ✅ Done
 - Deterministic structured validation errors for wiresheet plan/diff/apply (`code`, `message`, `path`, `hint`, `allowedValues`)
 - Added `nmcp.wiresheet.schema` for operation-shape introspection and one-retry client self-correction
 - Runtime `readOnly` gate now updates live through a mutable NiagaraSecurity policy propagated from BMcpService
