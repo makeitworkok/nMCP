@@ -326,7 +326,7 @@ In v0.7.0, the servlet endpoint was moved from `/mcp` to `/nmcp` to align the mo
 - Proxy layer remains named as-is but listens on `/nmcp` and forwards to `{base}/nmcp`
 
 **What must be updated by users:**
-1. **Claude Desktop config** (`%APPDATA%\Claude\claude_desktop_config.json`): Change `"url"` from `/mcp` to `/nmcp`
+1. **Desktop MCP client config** (for example `%APPDATA%\Claude\claude_desktop_config.json`): Change `"url"` from `/mcp` to `/nmcp`
 2. **VS Code Copilot MCP settings** (`%APPDATA%\Code\User\settings.json` or workspace `.code/mcp.json`): Update URL accordingly
 3. **Custom client scripts**: Any hardcoded endpoint URLs pointing to `/mcp` must change to `/nmcp`
 4. **Proxy startup**: The proxy auto-discovers the backend token from `GET /nmcp` and forwards all requests to `/nmcp`
@@ -336,7 +336,7 @@ In v0.7.0, the servlet endpoint was moved from `/mcp` to `/nmcp` to align the mo
 2. Delete old `niagaraMcp.jar` from both locations (may be file-locked; requires station/Workbench shutdown)
 3. Restart station to reload modules
 4. Update all client configs to reference `/nmcp`
-5. Restart clients (Claude Desktop, VS Code, proxy)
+5. Restart clients (MCP clients, VS Code, proxy)
 
 This consolidation ensures the module name, artifact name, and endpoint path are all consistently named `nMCP` / `nmcp`.
 
@@ -375,17 +375,17 @@ This consolidation ensures the module name, artifact name, and endpoint path are
 
 ## v0.5.2 — Documentation and Release Hygiene
 
-## 21. Surface implementation guidance so Claude Code instances read it before touching code
+## 21. Surface implementation guidance so coding agents read it before touching code
 
 - `docs/LESSONS_LEARNED.md` was written as a retrospective but contains hard-won runtime facts (slot names, async init rules, API gotchas) that prevent costly re-discovery.
-- Without a prominent pointer in the internal agent instructions file, new Claude Code instances defaulted to API guesswork and rediscovered the same bugs.
+- Without a prominent pointer in the internal agent instructions file, new coding-agent instances defaulted to API guesswork and rediscovered the same bugs.
 - **Fix:** Added a "Read First" section to the internal agent instructions immediately after the Project Overview; it explains the runtime failures and lists section headers so the reader knows the content without navigating away.
 - Four highest-impact lessons were also pulled inline into CLAUDE.md as they apply across all tools, not just wiresheet.
 
-## 22. Integration demo scripts serve as both live test and LLM client reference
+## 22. Integration demo scripts serve as both live test and MCP client reference
 
 - A dedicated integration demo script was created to exercise all 32 kitControl types against a live station in a 7-call sequence.
-- A re-runnable script is more reliable than notes: it fails loudly when a type or slot assumption is wrong, and it becomes a reference for LLM clients on correct call structure.
+- A re-runnable script is more reliable than notes: it fails loudly when a type or slot assumption is wrong, and it becomes a reference for MCP agents/clients on correct call structure.
 - **Practice:** For each new batch of supported types, write a corresponding demo script. Put creates and links in separate calls for control-point types (BNumericPoint/BBooleanPoint subclasses) to avoid async init failures.
 
 ## 23. Module version string is the authoritative version indicator for MCP clients

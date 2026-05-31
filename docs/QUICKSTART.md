@@ -186,7 +186,18 @@ Typical use:
 2. Run the auth proxy from this repo.
 3. Use `nMCP-client` to call `tools/list` and `tools/call` against `http://127.0.0.1:8765/nmcp`.
 
-### Claude Desktop
+Any MCP-capable agent/client that can set endpoint URL and headers can connect. The entries below are concrete configuration examples.
+
+### Hermes / OpenClaw / Codex / Custom MCP clients (example pattern)
+
+Configure your client with:
+- URL: `http://127.0.0.1:8765/nmcp`
+- Header: `X-MCP-Token: <your-client-token>`
+- Protocol: JSON-RPC 2.0 over HTTP POST
+
+Use `tools/list` first, then `tools/call`.
+
+### Claude Desktop (example)
 
 Add to your `claude_desktop_config.json`:
 
@@ -203,7 +214,7 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-### VS Code Copilot
+### VS Code Copilot (example)
 
 Add to your workspace or user settings:
 

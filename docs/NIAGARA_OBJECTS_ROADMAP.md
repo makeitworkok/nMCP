@@ -46,7 +46,7 @@
 - `strict=false` mode for `plan`/`diff` to allow `kitControl:` and `baja:` prefix types
 - `kitControl-rt` optional module dependency added to the module descriptor
 - `BComponent.getHandleOrd()` stub added for composite pin wiring
-- Full LLM-driven thermostat validation: 6 writable points + 4 kitControl logic blocks + 10 links across 3 apply calls
+- Full MCP-agent-driven thermostat validation: 6 writable points + 4 kitControl logic blocks + 10 links across 3 apply calls
 - License headers across all source files
 
 ### v0.5.2 — kitControl Expansion + Fixes ✅ Done
@@ -54,7 +54,7 @@
 - `setSlot` named-setter fix: after generic method scan fails, tries `set + capitalize(slotName)` — resolves `proportionalConstant`, `integralConstant`, `derivativeConstant`, `countIncrement`
 - `BMuxSwitch` excluded from type map — not instantiatable
 - Same-call async init rule documented: `BNumericPoint`/`BBooleanPoint` subclasses (switches, LoopPoint, Counter) must be linked in a separate apply call from their creation
-- Integration demo script (used during validation): 7-call sequence exercising all 32 kitControl types as a live integration test and LLM client reference
+- Integration demo script (used during validation): 7-call sequence exercising all 32 kitControl types as a live integration test and MCP client reference
 
 ---
 
@@ -120,7 +120,7 @@
 
 ## v0.9.0 — Object Model Enrichment (Next)
 
-**Goal:** Give LLM clients richer, more structured component data without requiring them to know internal slot names.
+**Goal:** Give MCP agents/clients richer, more structured component data without requiring them to know internal slot names.
 
 | Tool | Purpose |
 |---|---|

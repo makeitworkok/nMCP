@@ -34,14 +34,14 @@ See [NOTICES.md](NOTICES.md) for full details.
 ![Version](https://img.shields.io/badge/version-0.8.4-orange)
 ![MCP](https://img.shields.io/badge/nmcp-JSON--RPC%202.0-0A7CFF)
 ![Write Gated](https://img.shields.io/badge/Safety-Write--Gated-success)
-![Claude Validated](https://img.shields.io/badge/Claude-Validated-7B61FF)
+![MCP Agent Verified](https://img.shields.io/badge/MCP%20Agent-Verified-7B61FF)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 A Niagara custom module (for stations prior to version 4.13) that exposes station data (read-mostly, write-gated)
 through the
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/specification/2025-03-26).
 
-MCP-compatible clients like [nMCP-client](https://github.com/makeitworkok/nMCP-client) (or Claude Desktop, VS Code Copilot, etc.) can discover
+MCP-compatible agents/clients (for example [nMCP-client](https://github.com/makeitworkok/nMCP-client), Hermes, OpenClaw, Codex, Claude, VS Code Copilot, or custom clients) can discover
 and call tools that introspect the live station with explicit write gates and
 allowlist enforcement.
 
@@ -80,7 +80,7 @@ allowlist enforcement.
 | Area | Status |
 |---|---|
 | Live station integration | ✅ Validated |
-| Claude MCP workflow | ✅ Validated |
+| MCP agent workflows (Hermes/OpenClaw/Codex/nMCP-client/custom agents) | ✅ Validated |
 | Write gating via `readOnly` selector | ✅ Enforced |
 | Web auth proxy | ✅ Supported via companion client tooling |
 | Unit tests | ✅ Passing |
@@ -90,7 +90,7 @@ allowlist enforcement.
 ## Architecture
 
 ```
-Client (Claude Desktop / VS Code Copilot / curl / nMCP-client)
+Client (MCP agent/client: Hermes / OpenClaw / Codex / Claude / VS Code Copilot / curl / nMCP-client)
       └── Web auth proxy layer
         └── BMcpService  (BWebServlet at /nmcp)
               ├── McpJsonRpcHandler       JSON-RPC 2.0 dispatcher
@@ -273,7 +273,7 @@ Any ORD that does not start with one of these roots is immediately rejected.
 | v0.2 — Operator Essentials | ✅ Done | alarm.active, history.read, point.read/search, equipment.status, schedule.read/list |
 | v0.3 — Runtime API Fix + Synthesis | ✅ Done | alarm/history real API chain, trend.summary, fault.scan, building.brief, component.search, 110 tests |
 | v0.4.0 — Wiresheet Runtime | ✅ Done | wiresheet.plan/diff/apply/links, deterministic link invocation, ORD metadata repair for Workbench navigation, support for Numeric/Boolean/Enum/String writables |
-| v0.5.0 — kitControl + Facets | ✅ Done | kitControl:Add/Subtract/GreaterThan/LessThan/And/Or/Not creates, engineering-unit facets (degreesFahrenheit, precision, min/max, trueText/falseText), full LLM-driven thermostat (3 apply calls: 6 points + fallbacks + 4 logic blocks + 10 links) |
+| v0.5.0 — kitControl + Facets | ✅ Done | kitControl:Add/Subtract/GreaterThan/LessThan/And/Or/Not creates, engineering-unit facets (degreesFahrenheit, precision, min/max, trueText/falseText), full MCP-agent-driven thermostat (3 apply calls: 6 points + fallbacks + 4 logic blocks + 10 links) |
 | v0.5.2 — kitControl Expansion + Fixes | ✅ Done | Full kitControl type set (32 types including LoopPoint, Counter, MinMaxAvg, Ramp, all switches/latches/selects/timers), setSlot named-setter fix for primitive slots (proportionalConstant etc.), BMuxSwitch exclusion, same-call async init rule documented, integration demo script used during validation |
 | v0.6.0 — Haystack Tag Discovery | ✅ Done | `haystack.scanPoints` (discover points + report existing `h4:*` tags), `haystack.suggestTags` (heuristic tag suggestions + ready-to-use ruleset); corrected tag storage to `baja:Marker` type with `METADATA` flag, `h4$3a` slot prefix |
 | v0.6.1 — Priority-Slot Writes | ✅ Done | `point.write` (in10, operator priority), `point.override` (in8, override priority), `point.write null` releases slot via `setStatusNull(true)` on `BStatusNumeric`; `component.invokeAction`, `station.restart`, `driver.discoverAndAdd`; `alarm.ack` (acknowledge by source ORD); `schedule.write` (set default output on `BWeeklySchedule`); 35 tools, 171 unit tests |
