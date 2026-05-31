@@ -52,6 +52,8 @@ allowlist enforcement.
 
 ## My Why
 
+> I work from a Magnifica Humanitas mindset: technology should magnify human dignity, agency, and care.
+
 > I build to amplify people, not replace them.
 > I automate repetition so human judgment can focus on design, commissioning, and real problem-solving.
 > I treat safety as non-negotiable: explicit write gates, clear boundaries, and fail-closed defaults.
