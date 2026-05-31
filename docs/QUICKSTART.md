@@ -98,7 +98,7 @@ Expected response (JSON with your auto-generated token):
 }
 ```
 
-Expected station startup logs for v0.8.3:
+Expected station startup logs for v0.8.4:
 
 - `BMcpService: detected Niagara platform version <x.y.z>`
 - On Niagara 4.13+: `EULA of the version 4.13 and greater forbids use of AI, see Section 3.1(q) for details.`
@@ -146,13 +146,14 @@ curl -X POST http://127.0.0.1:8765/nmcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-You should receive a `tools` array listing all 39 available tools.
+You should receive a `tools` array listing all 40 available tools.
 
 At minimum, verify these key tools are present:
 - `nmcp.wiresheet.plan`
 - `nmcp.wiresheet.diff`
 - `nmcp.wiresheet.apply`
 - `nmcp.wiresheet.links`
+- `nmcp.wiresheet.layout`
 - `nmcp.station.exportSchema`
 - `nmcp.history.provisionOnPoint`
 

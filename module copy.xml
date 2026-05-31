@@ -7,11 +7,11 @@
 -->
 <module
   name="nMCP"
-    version="0.8.1"
+    version="0.8.4"
     preferredSymbol="nMCP"
     bajaVersion="0"
     vendor="makeitworkok"
-    vendorVersion="0.8.1"
+    vendorVersion="0.8.4"
     runtimeProfile="rt"
     nre="true"
     autoload="true"

@@ -11,13 +11,13 @@ Sensitive slot names (`password`, `secret`, `token`, `key`, `credential`, `auth`
 - BMcpService `readOnly=false`: write-capable tools are allowed to run, still subject to allowlists and tool-specific validation.
 - This selector is persistent in station config and should be treated as an operational change-control toggle.
 
-This reference matches current branch behavior for v0.8.3.
+This reference matches current branch behavior for v0.8.4.
 
 ---
 
-## Tool Inventory (v0.8.3)
+## Tool Inventory (v0.8.4)
 
-v0.8.3 keeps the 39-tool surface and hardens BACnet runtime failure handling so `nmcp.bacnet.devices` and `nmcp.bacnet.discover` return structured MCP errors instead of HTTP 500 when BACnet runtime classes are unavailable.
+v0.8.4 expands the surface to 40 tools by adding `nmcp.wiresheet.layout`, a separate dry-run-first readability pass with size-aware placement, collision avoidance, and controller-compatible `wsAnnotation` persistence.
 All tool names use the `nmcp.*` namespace.
 
 | Category | Tools |
@@ -33,10 +33,10 @@ All tool names use the `nmcp.*` namespace.
 | Equipment | `nmcp.equipment.status` |
 | Diagnostics | `nmcp.fault.scan`, `nmcp.building.brief` |
 | Haystack | `nmcp.haystack.getRuleset`, `nmcp.haystack.setRuleset`, `nmcp.haystack.applyRules`, `nmcp.haystack.scanPoints`, `nmcp.haystack.suggestTags` |
-| Wiresheet | `nmcp.wiresheet.schema`, `nmcp.wiresheet.plan`, `nmcp.wiresheet.diff`, `nmcp.wiresheet.apply`, `nmcp.wiresheet.links` |
+| Wiresheet | `nmcp.wiresheet.schema`, `nmcp.wiresheet.plan`, `nmcp.wiresheet.diff`, `nmcp.wiresheet.apply`, `nmcp.wiresheet.links`, `nmcp.wiresheet.layout` |
 | Write | `nmcp.point.write`, `nmcp.point.override`, `nmcp.component.invokeAction`, `nmcp.station.restart`, `nmcp.driver.discoverAndAdd` |
 
-Total: 39 tools.
+Total: 40 tools.
 
 ---
 
@@ -71,7 +71,7 @@ curl -X POST http://127.0.0.1:8765/nmcp \
   "osVersion": "10.0",
   "overallCpuUsage": 7,
   "totalPhysicalMemory": 14626736,
-  "moduleVersion": "0.8.3",
+  "moduleVersion": "0.8.4",
   "readOnly": false
 }
 ```
@@ -668,7 +668,7 @@ Returns a synthesized operational briefing: alarms + fault summary + equipment s
 ```json
 {
   "stationName": "mcp",
-  "moduleVersion": "0.8.3",
+  "moduleVersion": "0.8.4",
   "timestamp": 1714346400000,
   "alarmSummary": {
     "totalQueried": 20,

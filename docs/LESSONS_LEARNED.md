@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # Lessons Learned
 
-This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, v0.8.2, and v0.8.3.
+This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, v0.8.2, v0.8.3, and v0.8.4.
 
 ---
 
@@ -582,6 +582,32 @@ format to match native Niagara haystack conventions (`h4:*` marker slots, `baja:
 ---
 
 ## v0.8.3 — BACnet 500 Hardening
+
+## v0.8.4 — Layout Persistence, Text Blocks, and Size-Aware Placement
+
+### 37. `baja:TextBlock` runtime create support depends on the wiresheet text class
+
+- Niagara runtime creation support for readable wiresheet text blocks required mapping `baja:TextBlock` to `javax.baja.util.BWsTextBlock`.
+- Generic text/value assumptions were insufficient; the wiresheet editor expects the dedicated wiresheet text block type.
+- When adding user-facing wiresheet node types, validate both create behavior and edit-time persistence against live Workbench behavior.
+
+### 38. `wsAnnotation` writes must mirror Workbench controller behavior
+
+- Ordinary runtime components do not expose `wsAnnotation` as a normal mutable slot.
+- The working persistence path is the same one used by the wiresheet controller: call `getProperty("wsAnnotation")`, then `set(...)` if present or `add(...)` if absent.
+- Trying to force `wsAnnotation` through generic `setSlot`/setter discovery produces misleading "no compatible runtime set method" failures on otherwise valid components.
+
+### 39. Layout must treat blocks as rectangles, not points
+
+- Fixed row/column occupancy is not enough once blocks have materially different visible heights.
+- Collision avoidance must use width/height-aware rectangle intersection checks or vertically tall logic blocks will overlap neighbors even when grid cells differ.
+- Readability layout should account for current annotation size when available, then normalize extreme persisted auto-heights back toward computed targets.
+
+### 40. Visible slot count is a practical height heuristic, but it needs normalization
+
+- Counting visible non-hidden property slots gives a workable estimate for how tall a block should render.
+- Raw preservation of historical heights prevents tuning from taking effect, so non-comment blocks need normalization when current height is clearly oversized relative to computed slot-driven height.
+- A modest cap keeps generated layouts readable and avoids pathological stretching after repeated runs.
 
 ## 42. Catch `Throwable` on BACnet runtime paths to prevent servlet-level HTTP 500
 

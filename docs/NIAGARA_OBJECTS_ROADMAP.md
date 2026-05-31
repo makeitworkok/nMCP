@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # nMCP Roadmap
 
-**Current release: v0.8.3** — merged to `main`
+**Current release: v0.8.4** — merged to `main`
 
 ---
 
@@ -106,10 +106,15 @@
 - `nmcp.history.provisionOnPoint` hardened for Niagara 4.15 history DB APIs with connection-based `createHistory(BHistoryConfig)` fallback and live-verified creation behavior
 - `nmcp.component.search` filtering normalized (`trim` + case-insensitive matching) and type filtering expanded to support qualified type expressions (for example `control:numeric`)
 
-### v0.8.3 — BACnet Runtime Hardening + Restart Workflow ✅ Current
+### v0.8.3 — BACnet Runtime Hardening + Restart Workflow ✅ Done
 - `nmcp.bacnet.devices` and `nmcp.bacnet.discover` now catch runtime linkage/classloading failures and return structured MCP errors instead of servlet-level HTTP 500 responses.
 - BACnet ORDs are normalized before allowlist checks for consistency with other tool paths.
 - Added restart helper workflow (`temp/restart_and_wait.py`) to fire the sandbox one-shot restart, wait 60 seconds, and poll `nmcp.station.info` for recovery.
+
+### v0.8.4 — Wiresheet Layout + Text Blocks ✅ Current
+- Added `nmcp.wiresheet.layout` as a separate readability/layout tool with dry-run-by-default behavior.
+- Runtime layout now uses size-aware rectangle placement, visible-slot-driven height estimation, and overlap avoidance for live wiresheet organization.
+- `wsAnnotation` persistence now follows the Workbench controller add-or-set path, and `baja:TextBlock` creation is supported through the runtime wiresheet text block type.
 
 ---
 
