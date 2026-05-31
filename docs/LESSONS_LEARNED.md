@@ -118,6 +118,21 @@ private boolean isOrdUnset(BOrd ord) {
 
 Linking logic can be entirely correct while `createComponent` fails because the type mapping is incomplete. These failures are silent until you actually test `createComponent` for each type.
 
+---
+
+## 8. Layout should be a separate deterministic pass
+
+- Keep readability layout separate from `nmcp.wiresheet.apply` so wiring changes and visual layout changes do not get coupled.
+- Prefer a dry-run layout tool that computes positions first and writes `wsAnnotation` only when explicitly requested.
+- Use stable ordering plus collision avoidance so repeated runs are idempotent or near-idempotent.
+- Treat comment/text blocks as first-class layout nodes and anchor them near the logic they explain.
+
+## 9. `wsAnnotation` persistence follows the controller save path
+
+- Ordinary runtime blocks do not expose `wsAnnotation` as a native slot.
+- The wiresheet editor persists geometry by calling `getProperty("wsAnnotation")` and then `set(...)` or `add(...)` on the component.
+- Layout code should mirror that add-or-set behavior instead of trying to force `wsAnnotation` through generic slot setters.
+
 **v0.4.0 required explicit mappings for all four writable types:**
 | User-facing type string | Java class name |
 |---|---|

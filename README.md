@@ -106,7 +106,7 @@ Client (Claude Desktop / VS Code Copilot / curl / nMCP-client)
               ├── NiagaraFaultScanTool    fault.scan
               ├── NiagaraBuildingBriefTool building.brief
               ├── NiagaraHaystackTools    haystack.getRuleset/setRuleset/applyRules/scanPoints/suggestTags
-              ├── NiagaraWiresheetTools   wiresheet.plan/diff/apply/links + addCompositePin
+              ├── NiagaraWiresheetTools   wiresheet.plan/diff/apply/links/layout + addCompositePin
               ├── NiagaraWriteTools       point.write, point.override, component.invokeAction, station.restart, driver.discoverAndAdd (write-gated)
               ├── NiagaraBacnetTools      bacnet.devices, bacnet.discover
               └── NiagaraJson             zero-dependency JSON builder
@@ -181,13 +181,14 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full walkthrough.
 | `nmcp.wiresheet.diff` | Wiresheet | Deterministic desired-state diff for operation payloads |
 | `nmcp.wiresheet.apply` | Wiresheet | Write-gated execution report with `dryRun` default true |
 | `nmcp.wiresheet.links` | Wiresheet | Inspect runtime links for a component/slot (diagnostic) |
+| `nmcp.wiresheet.layout` | Wiresheet | Apply deterministic readability layout rules to a wiresheet root |
 | `nmcp.point.write` | Write | Write a value to a writable point at operator priority (write-gated) |
 | `nmcp.point.override` | Write | Override a point at priority 8 (write-gated) |
 | `nmcp.component.invokeAction` | Write | Invoke a named action on a component (write-gated) |
 | `nmcp.station.restart` | Write | Request a controlled station restart (write-gated) |
 | `nmcp.driver.discoverAndAdd` | Write | Trigger driver network discovery (write-gated) |
 
-Total tools in v0.8.3: 39.
+Total tools on branch v0.8.4 development line: 40.
 
 Full argument and response documentation: [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md)
 

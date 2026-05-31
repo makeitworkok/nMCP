@@ -890,6 +890,27 @@ Inspects runtime links on a component or slot. Returns source/target ORDs, slot 
 
 ---
 
+### `nmcp.wiresheet.layout`
+
+Applies deterministic readability layout rules to a wiresheet root. The current implementation uses a rules-v1 pass that favors left-to-right flow, collision avoidance, and comment proximity. `dryRun` defaults to `true`.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `rootOrd` | string | Yes | Root ORD whose child components are considered for layout |
+| `dryRun` | boolean | No | If `true` (default), compute layout without writing |
+| `originX` | integer | No | Grid origin X coordinate (default `1`) |
+| `originY` | integer | No | Grid origin Y coordinate (default `1`) |
+| `spacingX` | integer | No | Horizontal spacing between layers (default `24`) |
+| `spacingY` | integer | No | Vertical spacing between rows (default `4`) |
+| `width` | integer | No | `wsAnnotation` width (default `20`) |
+| `height` | integer | No | `wsAnnotation` height (default `2`) |
+| `components` | array | No | Optional explicit component snapshots for planning/testing |
+| `links` | array | No | Optional explicit link snapshots for deterministic layering |
+
+---
+
 ## Write Tools
 
 All write tools require `BMcpService.readOnly=false` and the target ORD to be within the configured allowlisted roots.

@@ -29,12 +29,13 @@ class NiagaraWiresheetToolsTest {
     void wiresheetTools_namesAndCount() {
         NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
         List<McpTool> list = tools.tools();
-        assertEquals(5, list.size());
+        assertEquals(6, list.size());
         assertEquals("nmcp.wiresheet.plan", list.get(0).name());
         assertEquals("nmcp.wiresheet.diff", list.get(1).name());
         assertEquals("nmcp.wiresheet.apply", list.get(2).name());
         assertEquals("nmcp.wiresheet.schema", list.get(3).name());
         assertEquals("nmcp.wiresheet.links", list.get(4).name());
+        assertEquals("nmcp.wiresheet.layout", list.get(5).name());
     }
 
     @Test
@@ -60,6 +61,92 @@ class NiagaraWiresheetToolsTest {
         assertEquals("arguments.operations[0].componentType", payload.get("path"));
         assertTrue(String.valueOf(payload.get("error")).contains("unsupported componentType"));
     }
+
+    @Test
+    void layout_dryRunOrdersLeftToRight_andPlacesCommentNearLogic() {
+        NiagaraWiresheetTools tools = new NiagaraWiresheetTools(writableSecurity());
+        McpTool layout = tools.tools().get(5);
+
+        List<Object> components = Arrays.<Object>asList(
+                component("station:|slot:/Drivers/sandbox/Temp", "Temp", "control:NumericWritable", null, false),
+                component("station:|slot:/Drivers/sandbox/Fan", "Fan", "control:BooleanWritable", null, false),
+                component("station:|slot:/Drivers/sandbox/Note", "Note", "baja:TextBlock", null, true));
+
+        List<Object> links = Arrays.<Object>asList(
+                linkOp("station:|slot:/Drivers/sandbox/Temp/out", "station:|slot:/Drivers/sandbox/Fan/in10"),
+                linkOp("station:|slot:/Drivers/sandbox/Temp/out", "station:|slot:/Drivers/sandbox/Note/in"));
+
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("rootOrd", "station:|slot:/Drivers");
+        args.put("dryRun", Boolean.TRUE);
+        args.put("components", components);
+        args.put("links", links);
+
+        McpToolResult result = layout.call(args, null);
+        assertFalse(result.isError());
+
+        Map<String, Object> parsed = NiagaraJson.parseObject(result.getContent());
+        assertEquals(Boolean.TRUE, parsed.get("dryRun"));
+        assertEquals("rules-v1", parsed.get("mode"));
+        assertEquals(3, ((Number) parsed.get("componentCount")).intValue());
+
+        @SuppressWarnings("unchecked")
+        List<Object> moves = (List<Object>) parsed.get("moves");
+        assertEquals(3, moves.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> temp = (Map<String, Object>) moves.get(0);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fan = (Map<String, Object>) moves.get(1);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> note = (Map<String, Object>) moves.get(2);
+
+        assertEquals("Temp", temp.get("name"));
+        assertEquals("Fan", fan.get("name"));
+        assertEquals("Note", note.get("name"));
+        assertEquals(Integer.valueOf(0), temp.get("layer"));
+        assertEquals(Integer.valueOf(1), fan.get("layer"));
+        assertEquals(Boolean.TRUE, note.get("isComment"));
+        assertTrue(String.valueOf(note.get("to")).contains(","), "comment should receive wsAnnotation coordinates");
+        assertTrue(String.valueOf(temp.get("to")).startsWith("1,"), "layout should normalize coordinates from origin");
+    }
+
+        @Test
+        void layout_dryRunUsesVisibleSlotCountToIncreaseHeight_andAvoidOverlap() {
+        NiagaraWiresheetTools tools = new NiagaraWiresheetTools(writableSecurity());
+        McpTool layout = tools.tools().get(5);
+
+        List<Object> components = Arrays.<Object>asList(
+            componentWithVisibleSlots("station:|slot:/Drivers/sandbox/Aggregator", "Aggregator", "control:NumericWritable", null, false, 12),
+            componentWithVisibleSlots("station:|slot:/Drivers/sandbox/Balance", "Balance", "control:NumericWritable", null, false, 2));
+
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("rootOrd", "station:|slot:/Drivers");
+        args.put("dryRun", Boolean.TRUE);
+        args.put("spacingY", Integer.valueOf(2));
+        args.put("components", components);
+
+        McpToolResult result = layout.call(args, null);
+        assertFalse(result.isError());
+
+        Map<String, Object> parsed = NiagaraJson.parseObject(result.getContent());
+        @SuppressWarnings("unchecked")
+        List<Object> moves = (List<Object>) parsed.get("moves");
+        assertEquals(2, moves.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> first = (Map<String, Object>) moves.get(0);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> second = (Map<String, Object>) moves.get(1);
+
+        int[] firstWs = wsParts(String.valueOf(first.get("to")));
+        int[] secondWs = wsParts(String.valueOf(second.get("to")));
+
+        assertTrue(firstWs[3] > 2,
+            "First component height should grow beyond default based on visible slot count");
+        assertTrue(secondWs[1] >= (firstWs[1] + firstWs[3]),
+            "Second component should start below the first component footprint");
+        }
 
     @Test
     void diff_rejectsNonAllowlistedRoot() {
@@ -428,6 +515,28 @@ class NiagaraWiresheetToolsTest {
     }
 
     @Test
+    void plan_bajaTextBlock_passesValidation_inNonStrictMode() {
+        NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
+        McpTool plan = tools.tools().get(0);
+
+        Map<String, Object> createOp = new LinkedHashMap<>();
+        createOp.put("type", "createComponent");
+        createOp.put("parentOrd", "station:|slot:/Drivers/sandbox");
+        createOp.put("name", "HeaderText");
+        createOp.put("componentType", "baja:TextBlock");
+
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("rootOrd", "station:|slot:/Drivers");
+        args.put("strict", Boolean.FALSE);
+        args.put("operations", Collections.<Object>singletonList(createOp));
+
+        McpToolResult result = plan.call(args, null);
+        assertFalse(result.isError());
+        assertTrue(result.getContent().contains("\"valid\":true"),
+                "Non-strict mode should accept baja:TextBlock");
+    }
+
+    @Test
     void plan_facets_preservedInNormalizedOperation() {
         NiagaraWiresheetTools tools = new NiagaraWiresheetTools(security());
         McpTool plan = tools.tools().get(0);
@@ -570,6 +679,43 @@ class NiagaraWiresheetToolsTest {
         op.put("from", from);
         op.put("to", to);
         return op;
+    }
+
+    private static Map<String, Object> component(String ord,
+                                                 String name,
+                                                 String type,
+                                                 String wsAnnotation,
+                                                 boolean isComment) {
+        Map<String, Object> comp = new LinkedHashMap<>();
+        comp.put("ord", ord);
+        comp.put("name", name);
+        comp.put("type", type);
+        if (wsAnnotation != null) {
+            comp.put("wsAnnotation", wsAnnotation);
+        }
+        comp.put("isComment", Boolean.valueOf(isComment));
+        return comp;
+    }
+
+    private static Map<String, Object> componentWithVisibleSlots(String ord,
+                                                                 String name,
+                                                                 String type,
+                                                                 String wsAnnotation,
+                                                                 boolean isComment,
+                                                                 int visibleSlotCount) {
+        Map<String, Object> comp = component(ord, name, type, wsAnnotation, isComment);
+        comp.put("visibleSlotCount", Integer.valueOf(visibleSlotCount));
+        return comp;
+    }
+
+    private static int[] wsParts(String ws) {
+        String[] p = ws.split(",");
+        return new int[]{
+                Integer.parseInt(p[0].trim()),
+                Integer.parseInt(p[1].trim()),
+                p.length > 2 ? Integer.parseInt(p[2].trim()) : 20,
+                p.length > 3 ? Integer.parseInt(p[3].trim()) : 2
+        };
     }
 
     // ---- v0.6.0 kitControl expansion tests ----

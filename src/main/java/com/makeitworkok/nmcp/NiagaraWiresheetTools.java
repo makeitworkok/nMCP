@@ -3,14 +3,18 @@ package com.makeitworkok.nmcp;
 
 import javax.baja.naming.BOrd;
 import javax.baja.sys.BComponent;
+import javax.baja.sys.BValue;
 import javax.baja.sys.Context;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * v0.4 scaffold for wiresheet automation.
@@ -37,6 +41,7 @@ public final class NiagaraWiresheetTools {
         list.add(wiresheetApply());
         list.add(wiresheetSchema());
         list.add(wiresheetLinks());
+        list.add(wiresheetLayout());
         return list;
     }
 
@@ -158,6 +163,175 @@ public final class NiagaraWiresheetTools {
         };
     }
 
+    private McpTool wiresheetLayout() {
+        return new McpTool() {
+            @Override public String name() { return "nmcp.wiresheet.layout"; }
+
+            @Override public String description() {
+                return "Applies deterministic readability layout rules (no-overlap, left-to-right flow, "
+                        + "comment proximity) by setting wsAnnotation. Dry-run default.";
+            }
+
+            @Override public String inputSchema() {
+                return "{\"type\":\"object\"," 
+                        + "\"properties\":{"
+                        + "  \"rootOrd\":{\"type\":\"string\",\"description\":\"Container ORD whose child components are laid out\"},"
+                        + "  \"dryRun\":{\"type\":\"boolean\",\"description\":\"If true, only return planned moves (default true)\"},"
+                        + "  \"originX\":{\"type\":\"integer\",\"description\":\"Grid origin X (default 1)\"},"
+                        + "  \"originY\":{\"type\":\"integer\",\"description\":\"Grid origin Y (default 1)\"},"
+                        + "  \"spacingX\":{\"type\":\"integer\",\"description\":\"Horizontal grid spacing (default 24)\"},"
+                        + "  \"spacingY\":{\"type\":\"integer\",\"description\":\"Vertical grid spacing (default 4)\"},"
+                        + "  \"width\":{\"type\":\"integer\",\"description\":\"wsAnnotation width (default 20)\"},"
+                        + "  \"height\":{\"type\":\"integer\",\"description\":\"wsAnnotation height (default 2)\"},"
+                        + "  \"components\":{\"type\":\"array\",\"description\":\"Optional explicit components for planning/tests\"},"
+                        + "  \"links\":{\"type\":\"array\",\"description\":\"Optional explicit links for topological layering\"}"
+                        + "},"
+                        + "\"required\":[\"rootOrd\"]}";
+            }
+
+            @Override public McpToolResult call(Map<String, Object> arguments, Context cx) {
+                if (arguments == null) {
+                    return McpToolResult.error("Missing required arguments object");
+                }
+
+                String rootOrd = asString(arguments.get("rootOrd"));
+                if (rootOrd == null || rootOrd.trim().isEmpty()) {
+                    return McpToolResult.error("Missing required argument: rootOrd");
+                }
+
+                try {
+                    security.checkAllowlist(rootOrd);
+                } catch (NiagaraSecurity.McpSecurityException e) {
+                    return McpToolResult.error(e.getMessage());
+                }
+
+                Object rawDryRun = arguments.get("dryRun");
+                boolean dryRun = rawDryRun == null ? true : asBoolean(rawDryRun);
+                if (!dryRun) {
+                    try {
+                        security.checkReadOnly();
+                    } catch (NiagaraSecurity.McpSecurityException e) {
+                        return McpToolResult.error(e.getMessage());
+                    }
+                }
+
+                int originX = intOrDefault(arguments.get("originX"), 1);
+                int originY = intOrDefault(arguments.get("originY"), 1);
+                int spacingX = Math.max(1, intOrDefault(arguments.get("spacingX"), 24));
+                int spacingY = Math.max(1, intOrDefault(arguments.get("spacingY"), 4));
+                int width = Math.max(1, intOrDefault(arguments.get("width"), 20));
+                int height = Math.max(1, intOrDefault(arguments.get("height"), 2));
+
+                List<LayoutNode> nodes;
+                try {
+                    nodes = readLayoutNodes(arguments.get("components"), rootOrd, cx);
+                } catch (Throwable e) {
+                    return McpToolResult.error("layout node discovery failed: " + e.getMessage());
+                }
+
+                if (nodes.isEmpty()) {
+                    return McpToolResult.success(NiagaraJson.obj(
+                            "rootOrd", rootOrd,
+                            "dryRun", Boolean.valueOf(dryRun),
+                            "mode", "rules-v1",
+                            "componentCount", Integer.valueOf(0),
+                            "changed", Integer.valueOf(0),
+                            "unchanged", Integer.valueOf(0),
+                            "moves", new ArrayList<Object>()));
+                }
+
+                Map<String, LayoutNode> byOrd = new LinkedHashMap<>();
+                for (LayoutNode node : nodes) {
+                    byOrd.put(node.ord, node);
+                }
+
+                List<LayoutEdge> edges = readLayoutEdges(arguments.get("links"), byOrd);
+                assignLayers(nodes, edges, byOrd);
+                assignGridPositions(nodes, edges, originX, originY, spacingX, spacingY, width, height);
+
+                List<Object> moves = new ArrayList<>();
+                int changed = 0;
+                int unchanged = 0;
+                int failed = 0;
+
+                for (LayoutNode node : nodes) {
+                    boolean isChanged = node.targetWsAnnotation != null
+                            && !node.targetWsAnnotation.equals(node.currentWsAnnotation);
+                    if (isChanged) {
+                        changed++;
+                    } else {
+                        unchanged++;
+                    }
+
+                    if (dryRun || !isChanged) {
+                        moves.add(NiagaraJson.obj(
+                                "ord", node.ord,
+                                "name", node.name,
+                                "type", node.type,
+                                "isComment", Boolean.valueOf(node.comment),
+                                "layer", Integer.valueOf(node.layer),
+                                "from", node.currentWsAnnotation,
+                                "to", node.targetWsAnnotation,
+                                "status", isChanged ? "planned" : "unchanged"));
+                        continue;
+                    }
+
+                    try {
+                        security.checkAllowlist(node.ord);
+                        Map<String, Object> op = NiagaraJson.obj(
+                                "index", Integer.valueOf(-1),
+                                "type", "setSlot",
+                                "componentOrd", node.ord,
+                                "slot", "wsAnnotation",
+                                "value", node.targetWsAnnotation);
+                        Map<String, Object> step = executeSetSlot(op, cx);
+                        String status = asString(step.get("status"));
+                        if (!"applied".equals(status)) {
+                            failed++;
+                        }
+                        moves.add(NiagaraJson.obj(
+                                "ord", node.ord,
+                                "name", node.name,
+                                "type", node.type,
+                                "isComment", Boolean.valueOf(node.comment),
+                                "layer", Integer.valueOf(node.layer),
+                                "from", node.currentWsAnnotation,
+                                "to", node.targetWsAnnotation,
+                                "status", status,
+                                "reason", step.get("reason")));
+                    } catch (Throwable e) {
+                        failed++;
+                        moves.add(NiagaraJson.obj(
+                                "ord", node.ord,
+                                "name", node.name,
+                                "type", node.type,
+                                "isComment", Boolean.valueOf(node.comment),
+                                "layer", Integer.valueOf(node.layer),
+                                "from", node.currentWsAnnotation,
+                                "to", node.targetWsAnnotation,
+                                "status", "failed",
+                                "reason", e.getMessage()));
+                    }
+                }
+
+                Map<String, Object> result = NiagaraJson.obj(
+                        "rootOrd", rootOrd,
+                        "dryRun", Boolean.valueOf(dryRun),
+                        "mode", "rules-v1",
+                        "componentCount", Integer.valueOf(nodes.size()),
+                        "linkCount", Integer.valueOf(edges.size()),
+                        "changed", Integer.valueOf(changed),
+                        "unchanged", Integer.valueOf(unchanged),
+                        "failed", Integer.valueOf(failed),
+                        "moves", moves);
+                if (edges.isEmpty()) {
+                    result.put("warning", "No links supplied; used deterministic name-based layering.");
+                }
+                return McpToolResult.success(result);
+            }
+        };
+    }
+
     private McpTool wiresheetPlan() {
         return new McpTool() {
             @Override public String name() { return "nmcp.wiresheet.plan"; }
@@ -266,7 +440,7 @@ public final class NiagaraWiresheetTools {
                         + "createComponent: requires parentOrd, name, componentType. "
                         + "Supported componentType values: "
                         + "control:NumericWritable, control:BooleanWritable, control:EnumWritable, control:StringWritable, "
-                        + "baja:Folder, "
+                        + "baja:Folder, baja:TextBlock, "
                         + "kitControl:LoopPoint, "
                         + "kitControl:NumericSwitch, kitControl:BooleanSwitch, kitControl:EnumSwitch, kitControl:StringSwitch, kitControl:MuxSwitch, "
                         + "kitControl:BooleanDelay, kitControl:NumericDelay, kitControl:OneShot, "
@@ -422,6 +596,25 @@ public final class NiagaraWiresheetTools {
                         "slot", slot);
             }
 
+            if ("wsAnnotation".equalsIgnoreCase(slot) && !(value instanceof BValue)) {
+                Object annotation = parseWsAnnotation(String.valueOf(value));
+                if (annotation != null) {
+                    value = annotation;
+                }
+            }
+
+            if ("wsAnnotation".equalsIgnoreCase(slot)
+                    && writeWsAnnotation(componentObj, slot, value, cx)) {
+                return NiagaraJson.obj(
+                        "index", op.get("index"),
+                        "type", "setSlot",
+                        "status", "applied",
+                        "componentOrd", componentOrd,
+                        "slot", slot,
+                        "resolvedSlot", slot,
+                        "value", value);
+            }
+
             // Keep compatibility for explicit out writes while also supporting priority-array slot writes.
             if ("out".equalsIgnoreCase(slot) && invokeSetter(componentObj, "setOut", value)) {
                 return NiagaraJson.obj(
@@ -529,6 +722,75 @@ public final class NiagaraWiresheetTools {
             if (invokeLinkMethodWithDiagnostics(source, methodName, sourceSlot, sourceSlotObj, target, targetSlot, targetSlotObj, result)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    private boolean writeWsAnnotation(Object componentObj, String slotName, Object value, Context cx) {
+        Object annotation = value;
+        if (annotation != null && !isWsAnnotationType(annotation.getClass())) {
+            annotation = parseWsAnnotation(String.valueOf(value));
+        }
+        if (annotation == null) {
+            return false;
+        }
+        try {
+            Class<?> propertyClass = Class.forName("javax.baja.sys.Property");
+            Class<?> bValueClass = Class.forName("javax.baja.sys.BValue");
+
+            Object slotObj = null;
+            try {
+                Method getProperty = componentObj.getClass().getMethod("getProperty", String.class);
+                slotObj = getProperty.invoke(componentObj, slotName);
+            } catch (Throwable ignored) {
+            }
+
+            if (slotObj != null) {
+                for (Method method : componentObj.getClass().getMethods()) {
+                    if (!"set".equals(method.getName()) || method.getParameterCount() != 3) {
+                        continue;
+                    }
+                    Class<?>[] params = method.getParameterTypes();
+                    if (params[0].isAssignableFrom(propertyClass)
+                            && params[1].isAssignableFrom(annotation.getClass())
+                            && Context.class.isAssignableFrom(params[2])) {
+                        method.invoke(componentObj, slotObj, annotation, cx);
+                        return true;
+                    }
+                }
+            }
+
+            for (Method method : componentObj.getClass().getMethods()) {
+                if (!"add".equals(method.getName())) {
+                    continue;
+                }
+                Class<?>[] params = method.getParameterTypes();
+                if (params.length == 4
+                        && String.class.equals(params[0])
+                        && params[1].isAssignableFrom(annotation.getClass())
+                        && (int.class.equals(params[2]) || Integer.class.equals(params[2]))
+                        && Context.class.isAssignableFrom(params[3])) {
+                    method.invoke(componentObj, slotName, annotation, Integer.valueOf(4096), cx);
+                    return true;
+                }
+                if (params.length == 5
+                        && String.class.equals(params[0])
+                        && params[1].isAssignableFrom(annotation.getClass())
+                        && (int.class.equals(params[2]) || Integer.class.equals(params[2]))
+                        && params[4].isAssignableFrom(Context.class)) {
+                    method.invoke(componentObj, slotName, annotation, Integer.valueOf(4096), null, cx);
+                    return true;
+                }
+                if (params.length == 4
+                        && String.class.equals(params[0])
+                        && bValueClass.isAssignableFrom(params[1])
+                        && (int.class.equals(params[2]) || Integer.class.equals(params[2]))
+                        && Context.class.isAssignableFrom(params[3])) {
+                    method.invoke(componentObj, slotName, annotation, Integer.valueOf(4096), cx);
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {
         }
         return false;
     }
@@ -1145,6 +1407,9 @@ public final class NiagaraWiresheetTools {
         if ("baja:Folder".equals(componentType)) {
             return instantiateByClassNames("javax.baja.util.BFolder");
         }
+        if ("baja:TextBlock".equals(componentType) || "baja:WsTextBlock".equals(componentType)) {
+            return instantiateByClassNames("javax.baja.util.BWsTextBlock");
+        }
         // Generic baja:/nre: types — try the type registry first, then class name convention
         if (componentType.startsWith("baja:") || componentType.startsWith("nre:")) {
             Object fromRegistry = instantiateViaTypeRegistry(componentType);
@@ -1601,6 +1866,12 @@ public final class NiagaraWiresheetTools {
         }
         String text = value.toString();
         try {
+            if (isWsAnnotationType(targetType)) {
+                Object annotation = parseWsAnnotation(text);
+                if (annotation != null) {
+                    return annotation;
+                }
+            }
             if (Boolean.TYPE.equals(targetType) || Boolean.class.equals(targetType)) {
                 return Boolean.valueOf(Boolean.parseBoolean(text));
             }
@@ -1627,6 +1898,51 @@ public final class NiagaraWiresheetTools {
             Object baja = tryBajaFactory(targetType, text);
             if (baja != null) {
                 return baja;
+            }
+        } catch (Throwable ignored) {
+            return null;
+        }
+        return null;
+    }
+
+    private boolean isWsAnnotationType(Class<?> targetType) {
+        if (targetType == null) {
+            return false;
+        }
+        String name = targetType.getName();
+        return "javax.baja.util.BWsAnnotation".equals(name) || "javax.baja.util.WsAnnotation".equals(name);
+    }
+
+    private Object parseWsAnnotation(String text) {
+        if (text == null) {
+            return null;
+        }
+        String[] parts = text.split(",");
+        if (parts.length < 2) {
+            return null;
+        }
+        try {
+            int p = Integer.parseInt(parts[0].trim());
+            int q = Integer.parseInt(parts[1].trim());
+            int w = parts.length > 2 ? Integer.parseInt(parts[2].trim()) : 20;
+            int h = parts.length > 3 ? Integer.parseInt(parts[3].trim()) : 2;
+
+            Class<?> cls = Class.forName("javax.baja.util.BWsAnnotation");
+            for (String factory : new String[]{"make"}) {
+                try {
+                    Method m = cls.getMethod(factory, int.class, int.class, int.class, int.class);
+                    Object value = m.invoke(null, Integer.valueOf(p), Integer.valueOf(q), Integer.valueOf(w), Integer.valueOf(h));
+                    if (value != null) {
+                        return value;
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+            try {
+                java.lang.reflect.Constructor<?> ctor = cls.getDeclaredConstructor(int.class, int.class, int.class, int.class);
+                ctor.setAccessible(true);
+                return ctor.newInstance(Integer.valueOf(p), Integer.valueOf(q), Integer.valueOf(w), Integer.valueOf(h));
+            } catch (Throwable ignored) {
             }
         } catch (Throwable ignored) {
             return null;
@@ -1994,6 +2310,509 @@ public final class NiagaraWiresheetTools {
         links.add(String.valueOf(result));
     }
 
+    private List<LayoutNode> readLayoutNodes(Object rawComponents, String rootOrd, Context cx) {
+        List<LayoutNode> nodes = new ArrayList<>();
+        if (rawComponents instanceof List) {
+            List<?> list = (List<?>) rawComponents;
+            for (Object item : list) {
+                if (!(item instanceof Map)) {
+                    continue;
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> comp = (Map<String, Object>) item;
+                String ord = asString(comp.get("ord"));
+                if (ord == null || ord.trim().isEmpty()) {
+                    continue;
+                }
+                String name = asString(comp.get("name"));
+                if (name == null || name.trim().isEmpty()) {
+                    int cut = ord.lastIndexOf('/');
+                    name = cut > 0 && cut < ord.length() - 1 ? ord.substring(cut + 1) : ord;
+                }
+                String type = asString(comp.get("type"));
+                String ws = asString(comp.get("wsAnnotation"));
+                int[] wsParts = parseWsAnnotationParts(ws);
+                int currentWidth = wsParts == null ? 0 : wsParts[2];
+                int currentHeight = wsParts == null ? 0 : wsParts[3];
+                int visibleSlotCount = intOrDefault(comp.get("visibleSlotCount"), -1);
+                boolean comment = comp.get("isComment") instanceof Boolean
+                        ? ((Boolean) comp.get("isComment")).booleanValue()
+                        : looksLikeComment(type, name);
+                nodes.add(new LayoutNode(ord, name, type, ws, comment, currentWidth, currentHeight, visibleSlotCount));
+            }
+            return nodes;
+        }
+
+        Object rootObj = BOrd.make(localOrd(rootOrd)).get(null, cx);
+        if (!(rootObj instanceof BComponent)) {
+            return nodes;
+        }
+        BComponent root = (BComponent) rootObj;
+        BComponent[] children = root.getChildComponents();
+        if (children == null) {
+            return nodes;
+        }
+        for (BComponent child : children) {
+            String childName = safeComponentName(child);
+            String ord = rootOrd + "/" + childName;
+            String type = safeComponentType(child);
+            String ws = readWsAnnotation(child);
+            int[] wsParts = parseWsAnnotationParts(ws);
+            int currentWidth = wsParts == null ? 0 : wsParts[2];
+            int currentHeight = wsParts == null ? 0 : wsParts[3];
+            int visibleSlotCount = countVisiblePropertySlots(child);
+            boolean comment = looksLikeComment(type, childName);
+            nodes.add(new LayoutNode(ord, childName, type, ws, comment, currentWidth, currentHeight, visibleSlotCount));
+        }
+        return nodes;
+    }
+
+    private List<LayoutEdge> readLayoutEdges(Object rawLinks, Map<String, LayoutNode> byOrd) {
+        List<LayoutEdge> edges = new ArrayList<>();
+        if (!(rawLinks instanceof List)) {
+            return edges;
+        }
+        List<?> links = (List<?>) rawLinks;
+        for (Object item : links) {
+            if (!(item instanceof Map)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> link = (Map<String, Object>) item;
+            String from = normalizeEndpoint(asString(link.get("from")), "out");
+            String to = normalizeEndpoint(asString(link.get("to")), "in10");
+            Endpoint src = parseEndpoint(from, "out");
+            Endpoint dst = parseEndpoint(to, "in10");
+            if (src == null || dst == null) {
+                continue;
+            }
+            if (!byOrd.containsKey(src.componentOrd) || !byOrd.containsKey(dst.componentOrd)) {
+                continue;
+            }
+            edges.add(new LayoutEdge(src.componentOrd, dst.componentOrd));
+        }
+        return edges;
+    }
+
+    private void assignLayers(List<LayoutNode> nodes,
+                              List<LayoutEdge> edges,
+                              Map<String, LayoutNode> byOrd) {
+        Map<String, Integer> indegree = new HashMap<>();
+        Map<String, List<String>> outgoing = new HashMap<>();
+        for (LayoutNode node : nodes) {
+            indegree.put(node.ord, Integer.valueOf(0));
+            outgoing.put(node.ord, new ArrayList<String>());
+            node.layer = 0;
+        }
+        for (LayoutEdge edge : edges) {
+            List<String> outs = outgoing.get(edge.fromOrd);
+            if (outs != null) {
+                outs.add(edge.toOrd);
+            }
+            Integer d = indegree.get(edge.toOrd);
+            if (d != null) {
+                indegree.put(edge.toOrd, Integer.valueOf(d.intValue() + 1));
+            }
+        }
+
+        List<LayoutNode> queue = new ArrayList<>();
+        for (LayoutNode node : nodes) {
+            Integer d = indegree.get(node.ord);
+            if (d != null && d.intValue() == 0) {
+                queue.add(node);
+            }
+        }
+        sortNodesByName(queue);
+
+        int idx = 0;
+        while (idx < queue.size()) {
+            LayoutNode node = queue.get(idx++);
+            List<String> outs = outgoing.get(node.ord);
+            if (outs == null) {
+                continue;
+            }
+            for (String toOrd : outs) {
+                LayoutNode target = byOrd.get(toOrd);
+                if (target == null) {
+                    continue;
+                }
+                if (target.layer < node.layer + 1) {
+                    target.layer = node.layer + 1;
+                }
+                Integer d = indegree.get(toOrd);
+                if (d == null) {
+                    continue;
+                }
+                int next = d.intValue() - 1;
+                indegree.put(toOrd, Integer.valueOf(next));
+                if (next == 0) {
+                    queue.add(target);
+                    sortNodesByName(queue.subList(idx, queue.size()));
+                }
+            }
+        }
+    }
+
+    private void assignGridPositions(List<LayoutNode> nodes,
+                                     List<LayoutEdge> edges,
+                                     int originX,
+                                     int originY,
+                                     int spacingX,
+                                     int spacingY,
+                                     int width,
+                                     int height) {
+        List<LayoutNode> nonComments = new ArrayList<>();
+        List<LayoutNode> comments = new ArrayList<>();
+        for (LayoutNode node : nodes) {
+            if (node.comment) {
+                comments.add(node);
+            } else {
+                nonComments.add(node);
+            }
+        }
+
+        sortNodesByLayerThenName(nonComments);
+        Map<Integer, Integer> layerNextY = new HashMap<>();
+        List<LayoutBox> occupied = new ArrayList<>();
+
+        for (LayoutNode node : nonComments) {
+            int x = originX + (node.layer * spacingX);
+            int nodeWidth = deriveLayoutWidth(node, width);
+            int nodeHeight = deriveLayoutHeight(node, height);
+            int y = layerNextY.containsKey(Integer.valueOf(node.layer))
+                    ? layerNextY.get(Integer.valueOf(node.layer)).intValue()
+                    : originY;
+            while (hasOverlap(occupied, x, y, nodeWidth, nodeHeight)) {
+                y += Math.max(1, spacingY);
+            }
+            occupied.add(new LayoutBox(x, y, nodeWidth, nodeHeight));
+            layerNextY.put(Integer.valueOf(node.layer), Integer.valueOf(y + nodeHeight + spacingY));
+            node.targetWsAnnotation = formatWsAnnotation(x, y, nodeWidth, nodeHeight);
+            node.gridX = x;
+            node.gridY = y;
+        }
+
+        sortNodesByName(comments);
+        for (LayoutNode comment : comments) {
+            LayoutNode anchor = findCommentAnchor(comment, nonComments, edges);
+            int layer = anchor == null ? 0 : anchor.layer;
+            int x = originX + (layer * spacingX);
+            int nodeWidth = deriveLayoutWidth(comment, width);
+            int nodeHeight = deriveLayoutHeight(comment, height);
+            int y = layerNextY.containsKey(Integer.valueOf(layer))
+                    ? layerNextY.get(Integer.valueOf(layer)).intValue()
+                    : originY;
+            while (hasOverlap(occupied, x, y, nodeWidth, nodeHeight)) {
+                y += Math.max(1, spacingY);
+            }
+            occupied.add(new LayoutBox(x, y, nodeWidth, nodeHeight));
+            layerNextY.put(Integer.valueOf(layer), Integer.valueOf(y + nodeHeight + spacingY));
+            comment.layer = layer;
+            comment.gridX = x;
+            comment.gridY = y;
+            comment.targetWsAnnotation = formatWsAnnotation(x, y, nodeWidth, nodeHeight);
+        }
+    }
+
+    private int deriveLayoutWidth(LayoutNode node, int defaultWidth) {
+        int base = Math.max(1, defaultWidth);
+        return Math.max(base, node.currentWidth);
+    }
+
+    private int deriveLayoutHeight(LayoutNode node, int defaultHeight) {
+        int base = Math.max(1, defaultHeight);
+        if (node.comment) {
+            return Math.max(base, node.currentHeight);
+        }
+        int estimatedFromSlots = Math.max(base, 3);
+        if (node.visibleSlotCount > 0) {
+            // Tune slot-to-height scaling to keep large blocks readable without over-stretching.
+            int rows = (node.visibleSlotCount + 3) / 4;
+            estimatedFromSlots = 2 + rows;
+            if (estimatedFromSlots > 10) {
+                estimatedFromSlots = 10;
+            }
+        }
+        int desired = Math.max(base, estimatedFromSlots);
+        if (node.currentHeight <= 0) {
+            return desired;
+        }
+        // Keep small manual tweaks, but normalize oversized persisted auto-heights.
+        if (node.currentHeight <= desired + 2) {
+            return Math.max(node.currentHeight, desired);
+        }
+        return desired;
+    }
+
+    private boolean hasOverlap(List<LayoutBox> occupied, int x, int y, int width, int height) {
+        for (LayoutBox box : occupied) {
+            if (rectanglesOverlap(x, y, width, height, box.x, box.y, box.width, box.height)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean rectanglesOverlap(int x1, int y1, int w1, int h1,
+                                      int x2, int y2, int w2, int h2) {
+        return x1 < (x2 + w2)
+                && (x1 + w1) > x2
+                && y1 < (y2 + h2)
+                && (y1 + h1) > y2;
+    }
+
+    private LayoutNode findCommentAnchor(LayoutNode comment,
+                                         List<LayoutNode> nonComments,
+                                         List<LayoutEdge> edges) {
+        for (LayoutEdge edge : edges) {
+            if (comment.ord.equals(edge.fromOrd)) {
+                for (LayoutNode node : nonComments) {
+                    if (edge.toOrd.equals(node.ord)) {
+                        return node;
+                    }
+                }
+            }
+            if (comment.ord.equals(edge.toOrd)) {
+                for (LayoutNode node : nonComments) {
+                    if (edge.fromOrd.equals(node.ord)) {
+                        return node;
+                    }
+                }
+            }
+        }
+        return nonComments.isEmpty() ? null : nonComments.get(0);
+    }
+
+    private void sortNodesByName(List<LayoutNode> nodes) {
+        Collections.sort(nodes, (a, b) -> a.name.compareToIgnoreCase(b.name));
+    }
+
+    private void sortNodesByLayerThenName(List<LayoutNode> nodes) {
+        Collections.sort(nodes, (a, b) -> {
+            if (a.layer != b.layer) {
+                return a.layer < b.layer ? -1 : 1;
+            }
+            return a.name.compareToIgnoreCase(b.name);
+        });
+    }
+
+    private String readWsAnnotation(Object component) {
+        String getterValue = invokeNoArgToString(component, "getWsAnnotation");
+        if (getterValue != null && !getterValue.trim().isEmpty()) {
+            return getterValue;
+        }
+
+        Object wsSlot = resolveSlotObject(component, "wsAnnotation");
+        if (wsSlot == null) {
+            return null;
+        }
+        for (Method method : component.getClass().getMethods()) {
+            if (!"get".equals(method.getName()) || method.getParameterCount() != 1) {
+                continue;
+            }
+            Object[] args = new Object[1];
+            if (!adaptValueForType(wsSlot, method.getParameterTypes()[0], args, 0)) {
+                continue;
+            }
+            try {
+                Object value = method.invoke(component, args);
+                if (value != null) {
+                    return String.valueOf(value);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private int[] parseWsAnnotationParts(String ws) {
+        if (ws == null || ws.trim().isEmpty()) {
+            return null;
+        }
+        String[] parts = ws.split(",");
+        if (parts.length < 2) {
+            return null;
+        }
+        try {
+            int x = Integer.parseInt(parts[0].trim());
+            int y = Integer.parseInt(parts[1].trim());
+            int width = parts.length > 2 ? Integer.parseInt(parts[2].trim()) : 20;
+            int height = parts.length > 3 ? Integer.parseInt(parts[3].trim()) : 2;
+            return new int[]{x, y, width, height};
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private int countVisiblePropertySlots(BComponent component) {
+        if (component == null) {
+            return 0;
+        }
+        try {
+            Method getProperties = component.getClass().getMethod("getProperties");
+            Object cursor = getProperties.invoke(component);
+            if (cursor == null) {
+                return 0;
+            }
+
+            Method nextMethod = findCursorNextMethod(cursor.getClass());
+            Method slotMethod = findCursorSlotMethod(cursor.getClass());
+            if (nextMethod == null || slotMethod == null) {
+                return 0;
+            }
+
+            int visible = 0;
+            while (Boolean.TRUE.equals(nextMethod.invoke(cursor))) {
+                Object slot = slotMethod.invoke(cursor);
+                if (slot == null) {
+                    continue;
+                }
+                String slotName = invokeNoArgToString(slot, "getName");
+                if ("wsAnnotation".equals(slotName)) {
+                    continue;
+                }
+                if (isHiddenSlot(component, slot)) {
+                    continue;
+                }
+                visible++;
+            }
+            if (visible > 0) {
+                return visible;
+            }
+            return countVisibleSlotsFromFields(component);
+        } catch (Throwable ignored) {
+            return countVisibleSlotsFromFields(component);
+        }
+    }
+
+    private int countVisibleSlotsFromFields(BComponent component) {
+        try {
+            Class<?> slotClass = Class.forName("javax.baja.sys.Slot");
+            Set<String> names = new HashSet<>();
+            for (java.lang.reflect.Field field : component.getClass().getFields()) {
+                if (!slotClass.isAssignableFrom(field.getType())) {
+                    continue;
+                }
+                if ((field.getModifiers() & java.lang.reflect.Modifier.STATIC) == 0) {
+                    continue;
+                }
+                Object slot = field.get(null);
+                if (slot == null) {
+                    continue;
+                }
+                String slotName = invokeNoArgToString(slot, "getName");
+                if (slotName == null || slotName.trim().isEmpty()) {
+                    slotName = field.getName();
+                }
+                if ("wsAnnotation".equals(slotName)) {
+                    continue;
+                }
+                if (isHiddenSlot(component, slot)) {
+                    continue;
+                }
+                names.add(slotName);
+            }
+            return names.size();
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private Method findCursorNextMethod(Class<?> cursorClass) {
+        for (String name : Arrays.asList("next", "nextProperty", "nextComponent")) {
+            try {
+                Method m = cursorClass.getMethod(name);
+                if (boolean.class.equals(m.getReturnType()) || Boolean.class.equals(m.getReturnType())) {
+                    return m;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private Method findCursorSlotMethod(Class<?> cursorClass) {
+        for (String name : Arrays.asList("property", "slot", "get")) {
+            try {
+                Method m = cursorClass.getMethod(name);
+                if (m.getParameterCount() == 0) {
+                    return m;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private boolean isHiddenSlot(BComponent component, Object slot) {
+        try {
+            Class<?> flagsClass = Class.forName("javax.baja.sys.Flags");
+            Class<?> bComplexClass = Class.forName("javax.baja.sys.BComplex");
+            Class<?> slotClass = Class.forName("javax.baja.sys.Slot");
+            Method isHidden = flagsClass.getMethod("isHidden", bComplexClass, slotClass);
+            Object result = isHidden.invoke(null, component, slot);
+            return result instanceof Boolean && ((Boolean) result).booleanValue();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private String safeComponentName(BComponent component) {
+        try {
+            String name = component.getName();
+            if (name != null && !name.trim().isEmpty()) {
+                return name;
+            }
+        } catch (Throwable ignored) {
+        }
+        return component.getClass().getSimpleName();
+    }
+
+    private String safeComponentType(BComponent component) {
+        try {
+            Method m = component.getClass().getMethod("getType");
+            Object type = m.invoke(component);
+            if (type != null) {
+                for (String typeMethod : new String[]{"getTypeSpec", "getTypeName", "toString"}) {
+                    try {
+                        Method tm = type.getClass().getMethod(typeMethod);
+                        Object v = tm.invoke(type);
+                        if (v != null) {
+                            return String.valueOf(v);
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return component.getClass().getSimpleName();
+    }
+
+    private boolean looksLikeComment(String type, String name) {
+        String t = type == null ? "" : type.toLowerCase();
+        String n = name == null ? "" : name.toLowerCase();
+        return t.contains("textblock") || n.contains("text") || n.contains("comment") || n.contains("note");
+    }
+
+    private String formatWsAnnotation(int x, int y, int width, int height) {
+        return x + "," + y + "," + width + "," + height;
+    }
+
+    private int intOrDefault(Object raw, int fallback) {
+        if (raw instanceof Number) {
+            return ((Number) raw).intValue();
+        }
+        if (raw instanceof String) {
+            try {
+                return Integer.parseInt((String) raw);
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
+    }
+
     private String baseInputSchema() {
         return "{\"type\":\"object\","
                 + "\"properties\":{"
@@ -2002,7 +2821,7 @@ public final class NiagaraWiresheetTools {
                 + "createComponent operations accept an optional 'facets' object with keys: "
                 + "units, precision, min, max, trueText, falseText.\"},"
                 + "  \"strict\":{\"type\":\"boolean\",\"description\":\"Enable strict type checks (default true). "
-                + "When false, kitControl: prefix types are accepted.\"}"
+                + "When false, kitControl:/baja:/nre: prefix types are accepted.\"}"
                 + "},"
                 + "\"required\":[\"rootOrd\",\"operations\"]}";
     }
@@ -2572,6 +3391,67 @@ public final class NiagaraWiresheetTools {
         private Endpoint(String componentOrd, String slot) {
             this.componentOrd = componentOrd;
             this.slot = slot;
+        }
+    }
+
+    private static final class LayoutNode {
+        private final String ord;
+        private final String name;
+        private final String type;
+        private final String currentWsAnnotation;
+        private final boolean comment;
+        private final int currentWidth;
+        private final int currentHeight;
+        private final int visibleSlotCount;
+        private int layer;
+        private int gridX;
+        private int gridY;
+        private String targetWsAnnotation;
+
+        private LayoutNode(String ord,
+                           String name,
+                           String type,
+                           String currentWsAnnotation,
+                           boolean comment,
+                           int currentWidth,
+                           int currentHeight,
+                           int visibleSlotCount) {
+            this.ord = ord;
+            this.name = name;
+            this.type = type;
+            this.currentWsAnnotation = currentWsAnnotation;
+            this.comment = comment;
+            this.currentWidth = currentWidth;
+            this.currentHeight = currentHeight;
+            this.visibleSlotCount = visibleSlotCount;
+            this.layer = 0;
+            this.gridX = 0;
+            this.gridY = 0;
+            this.targetWsAnnotation = currentWsAnnotation;
+        }
+    }
+
+    private static final class LayoutBox {
+        private final int x;
+        private final int y;
+        private final int width;
+        private final int height;
+
+        private LayoutBox(int x, int y, int width, int height) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
+    }
+
+    private static final class LayoutEdge {
+        private final String fromOrd;
+        private final String toOrd;
+
+        private LayoutEdge(String fromOrd, String toOrd) {
+            this.fromOrd = fromOrd;
+            this.toOrd = toOrd;
         }
     }
 }
