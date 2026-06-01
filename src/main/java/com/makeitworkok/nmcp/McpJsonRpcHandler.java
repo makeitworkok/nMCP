@@ -1,7 +1,9 @@
 // Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License.
 package com.makeitworkok.nmcp;
 
+import javax.baja.naming.BOrd;
 import javax.baja.sys.Context;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,6 +28,7 @@ import java.util.logging.Logger;
 public final class McpJsonRpcHandler {
 
     private static final Logger LOG = Logger.getLogger(McpJsonRpcHandler.class.getName());
+    private static final String AUDIT_SERVICE_ORD = "station:|slot:/Services/AuditHistoryService";
 
     /** MCP protocol version advertised during {@code initialize}. */
     private static final String MCP_PROTOCOL_VERSION = "2024-11-05";
@@ -33,6 +36,7 @@ public final class McpJsonRpcHandler {
     private final McpToolRegistry registry;
     private final NiagaraSecurity security;
     private final String serviceVersion;
+    private boolean auditUnavailableLogged;
 
     public McpJsonRpcHandler(McpToolRegistry registry,
                              NiagaraSecurity security,
@@ -50,11 +54,24 @@ public final class McpJsonRpcHandler {
      * Handles a raw JSON-RPC request string and returns a JSON-RPC response string.
      * This method never throws; errors are encoded as JSON-RPC error responses.
      *
-     * @param requestBody raw JSON string from the HTTP request body
-     * @param cx          Niagara context (may be null during testing)
+     * @param requestBody   raw JSON string from the HTTP request body
+     * @param cx            Niagara context (may be null during testing)
      * @return JSON-RPC response string
      */
     public String handle(String requestBody, Context cx) {
+        return handle(requestBody, cx, null);
+    }
+
+    /**
+     * Handles a raw JSON-RPC request string and returns a JSON-RPC response string.
+     * This method never throws; errors are encoded as JSON-RPC error responses.
+     *
+     * @param requestBody   raw JSON string from the HTTP request body
+     * @param cx            Niagara context (may be null)
+     * @param agentIdentity sanitized agent name from {@code X-MCP-Agent} header (may be null)
+     * @return JSON-RPC response string
+     */
+    public String handle(String requestBody, Context cx, String agentIdentity) {
         Object id = null;
         // Parse the request outside the main try so parse errors map to PARSE_ERROR
         Map<String, Object> request;
@@ -77,7 +94,7 @@ public final class McpJsonRpcHandler {
                 case "tools/list":
                     return success(id, handleToolsList());
                 case "tools/call":
-                    return success(id, handleToolsCall(params, cx));
+                    return success(id, handleToolsCall(params, cx, agentIdentity));
                 case "resources/list":
                     return success(id, handleResourcesList());
                 case "resources/read":
@@ -130,8 +147,8 @@ public final class McpJsonRpcHandler {
         return NiagaraJson.obj("tools", toolList);
     }
 
-    private Map<String, Object> handleToolsCall(Map<String, Object> params, Context cx)
-            throws Exception {
+    private Map<String, Object> handleToolsCall(Map<String, Object> params, Context cx,
+            String agentIdentity) throws Exception {
         String name = getString(params, "name", true);
         McpTool tool = registry.get(name);
         if (tool == null) {
@@ -139,7 +156,9 @@ public final class McpJsonRpcHandler {
         }
 
         Map<String, Object> arguments = getNestedObject(params, "arguments");
-        LOG.info("MCP tools/call: tool=" + name + " user=" + contextUser(cx));
+        String user = resolveUser(cx, agentIdentity);
+        LOG.info("MCP tools/call: tool=" + name + " user=" + user);
+        auditToolCall(name, user, cx);
 
         // Tools handle security and exceptions internally; they return McpToolResult rather than
         // throwing. A RuntimeException would still bubble up to handle()'s outer catch.
@@ -283,9 +302,67 @@ public final class McpJsonRpcHandler {
         return v.toString();
     }
 
+    private String resolveUser(Context cx, String agentIdentity) {
+        if (agentIdentity != null && !agentIdentity.isEmpty()) {
+            return agentIdentity;
+        }
+        return contextUser(cx);
+    }
+
+    private void auditToolCall(String toolName, String user, Context cx) {
+        try {
+            Object resolved = BOrd.make(AUDIT_SERVICE_ORD).get(null, cx);
+            if (resolved == null) {
+                logAuditUnavailable("AuditHistoryService ORD resolved to null");
+                return;
+            }
+            Class<?> auditEventClass = Class.forName("javax.baja.security.AuditEvent");
+            Object invoked = auditEventClass.getField("INVOKED").get(null);
+            Object event = auditEventClass
+                    .getConstructor(String.class, String.class, String.class,
+                            String.class, String.class, String.class)
+                    .newInstance(
+                    invoked,
+                    "nMCP",
+                    toolName,
+                    "",
+                    "MCP tools/call",
+                    user
+            );
+            Method audit = resolved.getClass().getMethod("audit", auditEventClass);
+            audit.invoke(resolved, event);
+        } catch (Throwable e) {
+            logAuditUnavailable(e.getMessage());
+        }
+    }
+
+    private void logAuditUnavailable(String detail) {
+        if (!auditUnavailableLogged) {
+            auditUnavailableLogged = true;
+            LOG.warning("MCP audit log unavailable: " + detail);
+        }
+    }
+
     private String contextUser(Context cx) {
         if (cx == null) return "unknown";
-        try { return cx.getUsername(); } catch (Exception e) { return "unknown"; }
+        try {
+            Object user = invokeNoArg(cx, "getUser");
+            if (user != null) {
+                Object username = invokeNoArg(user, "getUsername");
+                if (username != null && !username.toString().isEmpty()) {
+                    return username.toString();
+                }
+            }
+            Object username = invokeNoArg(cx, "getUsername");
+            return username == null || username.toString().isEmpty() ? "unknown" : username.toString();
+        } catch (Throwable e) {
+            return "unknown";
+        }
+    }
+
+    private Object invokeNoArg(Object target, String methodName) throws Exception {
+        Method method = target.getClass().getMethod(methodName);
+        return method.invoke(target);
     }
 
     // -------------------------------------------------------------------------

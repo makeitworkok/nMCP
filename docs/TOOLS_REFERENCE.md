@@ -11,13 +11,13 @@ Sensitive slot names (`password`, `secret`, `token`, `key`, `credential`, `auth`
 - BMcpService `readOnly=false`: write-capable tools are allowed to run, still subject to allowlists and tool-specific validation.
 - This selector is persistent in station config and should be treated as an operational change-control toggle.
 
-This reference matches current branch behavior for v0.8.4.
+This reference matches current branch behavior for v0.8.5.
 
 ---
 
-## Tool Inventory (v0.8.4)
+## Tool Inventory (v0.8.5)
 
-v0.8.4 expands the surface to 40 tools by adding `nmcp.wiresheet.layout`, a separate dry-run-first readability pass with size-aware placement, collision avoidance, and controller-compatible `wsAnnotation` persistence.
+v0.8.5 keeps the surface at 40 tools and adds MCP agent identity tracing for every `tools/call`: the optional `X-MCP-Agent` header is sanitized, shown in Application Director, and emitted as Niagara Audit Log `INVOKED` events through `AuditHistoryService`.
 All tool names use the `nmcp.*` namespace.
 
 | Category | Tools |
@@ -71,7 +71,7 @@ curl -X POST http://127.0.0.1:8765/nmcp \
   "osVersion": "10.0",
   "overallCpuUsage": 7,
   "totalPhysicalMemory": 14626736,
-  "moduleVersion": "0.8.4",
+  "moduleVersion": "0.8.5",
   "readOnly": false
 }
 ```
@@ -668,7 +668,7 @@ Returns a synthesized operational briefing: alarms + fault summary + equipment s
 ```json
 {
   "stationName": "mcp",
-  "moduleVersion": "0.8.4",
+  "moduleVersion": "0.8.5",
   "timestamp": 1714346400000,
   "alarmSummary": {
     "totalQueried": 20,

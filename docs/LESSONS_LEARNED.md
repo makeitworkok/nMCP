@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # Lessons Learned
 
-This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, v0.8.2, v0.8.3, and v0.8.4.
+This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, v0.8.2, v0.8.3, v0.8.4, and v0.8.5.
 
 ---
 
@@ -624,3 +624,25 @@ format to match native Niagara haystack conventions (`h4:*` marker slots, `baja:
 - BACnet tools were originally checking allowlist on raw `networkOrd` values before stripping transport prefixes.
 - This could create mismatch behavior compared to other tools that normalize `local:|` and `foxwss:|` first.
 - Rule reinforcement: normalize ORD first, then apply allowlist and resolution consistently across all tool categories.
+
+---
+
+## v0.8.5 — Audit Log Agent Identity
+
+### 44. Application Director logs are not the Niagara Audit Log
+
+- `LOG.info(...)` output appears in Application Director, but it does not create Niagara Audit Log rows.
+- To write real audit history, resolve `station:|slot:/Services/AuditHistoryService` and call `javax.baja.security.Auditor.audit(...)` with an `AuditEvent`.
+- Centralizing this in `McpJsonRpcHandler.handleToolsCall(...)` covers all MCP tools consistently without modifying every individual tool.
+
+### 45. Do not instantiate `Context` in runtime code
+
+- The local test stub exposes `new Context("user")`, but real Niagara `javax.baja.sys.Context` is an interface.
+- Runtime code must not construct it. Pass explicit agent identity separately, and use reflection only as a fallback when a real non-null Context is supplied by Niagara.
+- This prevents servlet-level HTTP 500 failures caused by stub/runtime API mismatch.
+
+### 46. Sanitize agent identity before log or audit emission
+
+- `X-MCP-Agent` is client-controlled input.
+- Strip characters outside `[a-zA-Z0-9._@-]`, truncate to a small bounded length, and fall back to `unknown` when absent or empty.
+- This preserves useful audit identity while preventing log injection and noisy/unbounded audit fields.

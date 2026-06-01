@@ -204,6 +204,36 @@ class McpJsonRpcHandlerTest {
     }
 
     // -------------------------------------------------------------------------
+    // Audit log: contextUser identity
+    // -------------------------------------------------------------------------
+
+    @Test
+    void contextUser_returnsUsername_whenAgentIdentityProvided() {
+        // The three-arg handle() with a non-null agentIdentity should succeed without error.
+        registry.register(echoTool("probe", "probe"));
+        String resp = handler.handle(
+                "{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"probe\",\"arguments\":{}}}",
+                null, "hermes");
+        Map<String, Object> parsed = NiagaraJson.parseObject(resp);
+        assertFalse(parsed.containsKey("error"), "Unexpected JSON-RPC error: " + parsed.get("error"));
+        assertNotNull(parsed.get("result"));
+    }
+
+    @Test
+    void contextUser_fallsBackToUnknown_whenContextNullAndNoAgent() {
+        // Passing null Context and null agentIdentity must not throw.
+        registry.register(echoTool("probe", "probe"));
+        String resp = handler.handle(
+                "{\"jsonrpc\":\"2.0\",\"id\":100,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"probe\",\"arguments\":{}}}",
+                null, null);
+        Map<String, Object> parsed = NiagaraJson.parseObject(resp);
+        assertFalse(parsed.containsKey("error"), "Unexpected JSON-RPC error with null context: " + parsed.get("error"));
+        assertNotNull(parsed.get("result"));
+    }
+
+    // -------------------------------------------------------------------------
     // URI ↔ ORD conversion
     // -------------------------------------------------------------------------
 
@@ -258,4 +288,5 @@ class McpJsonRpcHandlerTest {
             }
         };
     }
+
 }

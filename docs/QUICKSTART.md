@@ -98,7 +98,7 @@ Expected response (JSON with your auto-generated token):
 }
 ```
 
-Expected station startup logs for v0.8.4:
+Expected station startup logs for v0.8.5:
 
 - `BMcpService: detected Niagara platform version <x.y.z>`
 - On Niagara 4.13+: `EULA of the version 4.13 and greater forbids use of AI, see Section 3.1(q) for details.`
@@ -124,6 +124,7 @@ automatically so clients don't need to implement it.
 | `--niagara-pass` | Yes | Niagara web password |
 | `--token` | No | Optional client token; if omitted, all requests are accepted without auth |
 | `--backend-mcp-token` | No | If omitted, auto-discovered from `GET /nmcp` after login |
+| `--agent` | No | Agent/client name sent as `X-MCP-Agent` header to Niagara; appears in Application Director and Niagara Audit Log entries instead of `unknown` |
 | `--port` | No (default: `8765`) | Port the proxy listens on |
 
 The proxy logs its session state to stdout. A successful start looks like:
@@ -132,6 +133,7 @@ The proxy logs its session state to stdout. A successful start looks like:
 [mcp-proxy] Connecting to Niagara at https://localhost …
 [mcp-proxy] Auto-discovered backend MCP token from station
 [mcp-proxy] Authenticated as 'mcp'
+[mcp-proxy] Agent identity header: X-MCP-Agent: myAgent
 [mcp-proxy] Listening on http://127.0.0.1:8765/nmcp
 ```
 

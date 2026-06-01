@@ -2,16 +2,16 @@
 <!--
   Niagara Module Descriptor
   Module: nMCP
-  Version: 0.8.1
+  Version: 0.8.5
   Vendor: makeitworkok
 -->
 <module
   name="nMCP"
-    version="0.8.4"
+    version="0.8.5"
     preferredSymbol="nMCP"
     bajaVersion="0"
     vendor="makeitworkok"
-    vendorVersion="0.8.4"
+    vendorVersion="0.8.5"
     runtimeProfile="rt"
     nre="true"
     autoload="true"

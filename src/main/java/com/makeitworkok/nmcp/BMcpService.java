@@ -33,6 +33,9 @@ public class BMcpService extends BWebServlet {
     private static final String CONTENT_TYPE_JSON = "application/json; charset=UTF-8";
     private static final int MAX_BODY_BYTES = 1024 * 1024;
     private static final String MCP_TOKEN_HEADER = "X-MCP-Token";
+    private static final String MCP_AGENT_HEADER = "X-MCP-Agent";
+    private static final java.util.regex.Pattern AGENT_NAME_PATTERN =
+            java.util.regex.Pattern.compile("[^a-zA-Z0-9._@\\-]");
     private static final String RUNTIME_PROFILE_EXPECTED = "R@wD0g!t";
     private static final String RUNTIME_PROFILE_SYSTEM_PROPERTY = "nmcp.runtime.profile";
 
@@ -41,7 +44,7 @@ public class BMcpService extends BWebServlet {
     public static final Property runtimeProfile = newProperty(Flags.HIDDEN, BString.make(""), null);
 
     public static final Type TYPE = Sys.loadType(BMcpService.class);
-    public static final String MODULE_VERSION = "0.8.3";
+    public static final String MODULE_VERSION = "0.8.5";
 
     private boolean enabled = true;
     private String endpointPath = "/nmcp";
@@ -149,7 +152,7 @@ public class BMcpService extends BWebServlet {
                 writeServiceUnavailable(resp);
                 return;
             }
-            String response = handler.handle(body, null);
+            String response = handler.handle(body, null, extractAgentIdentity(req));
 
             resp.setStatus(200);
             resp.setContentType(CONTENT_TYPE_JSON);
@@ -231,6 +234,24 @@ public class BMcpService extends BWebServlet {
             return "nmcp";
         }
         return path.startsWith("/") ? path.substring(1) : path;
+    }
+
+    /**
+     * Extracts a sanitized agent identity from the {@code X-MCP-Agent} request header.
+     * If the header is absent or empty, returns {@code "unknown"}.
+     * The value is truncated to 64 characters and stripped of any characters
+     * outside {@code [a-zA-Z0-9._@-]} to prevent log injection.
+     */
+    private String extractAgentIdentity(HttpServletRequest req) {
+        String raw = req.getHeader(MCP_AGENT_HEADER);
+        if (raw == null || raw.trim().isEmpty()) {
+            return "unknown";
+        }
+        String sanitized = AGENT_NAME_PATTERN.matcher(raw.trim()).replaceAll("");
+        if (sanitized.isEmpty()) {
+            return "unknown";
+        }
+        return sanitized.length() > 64 ? sanitized.substring(0, 64) : sanitized;
     }
 
     private boolean isAuthorized(HttpServletRequest req) {
