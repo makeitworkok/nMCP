@@ -47,15 +47,14 @@ public final class NiagaraScheduleTools {
             @Override public String name() { return "nmcp.schedule.read"; }
 
             @Override public String description() {
-                return "Reads a schedule component by ORD: current occupancy state, "
-                        + "next transition time (epoch ms), and next state. "
-                        + "ORD must be within allowlisted roots.";
+                return "Use to inspect one allowlisted BWeeklySchedule. Returns current occupancy state, next transition "
+                    + "time in epoch milliseconds, and next state without modifying the schedule.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Schedule component ORD\"}"
+                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Allowlisted BWeeklySchedule ORD to read\"}"
                         + "},"
                         + "\"required\":[\"ord\"]}";
             }
@@ -95,16 +94,16 @@ public final class NiagaraScheduleTools {
             @Override public String name() { return "nmcp.schedule.list"; }
 
             @Override public String description() {
-                return "Lists all BWeeklySchedule components under the configured root "
-                        + "with their current occupancy state. Quick overview of occupancy across the building.";
+                return "Use for occupancy overview. Recursively lists BWeeklySchedule components under an allowlisted root "
+                    + "with their current state; read-only and capped by BMcpService maxResults.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
                         + "  \"root\":{\"type\":\"string\","
-                        + "    \"description\":\"Root ORD to search (default station:|slot:/Drivers)\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max results\"}"
+                        + "    \"description\":\"Allowlisted root ORD to search for schedules; default station:|slot:/Drivers\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum schedules to return, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }
@@ -143,17 +142,15 @@ public final class NiagaraScheduleTools {
             @Override public String name() { return "nmcp.schedule.write"; }
 
             @Override public String description() {
-                return "Sets the defaultOutput slot on a BWeeklySchedule — effectively the fallback occupancy state. "
-                        + "For finer-grained event editing (weekly program entries) use Workbench. "
-                        + "Requires readOnly=false and ORD within allowlisted roots. "
-                        + "'state' must be the desired default output string (e.g. 'occupied', 'unoccupied').";
+                return "Write-mode required. Sets defaultOutput on an allowlisted BWeeklySchedule as the fallback "
+                    + "occupancy state; weekly event/program editing remains a Workbench task.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Schedule component ORD\"},"
-                        + "  \"state\":{\"type\":\"string\",\"description\":\"New default output state (e.g. occupied, unoccupied)\"}"
+                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Allowlisted BWeeklySchedule ORD whose defaultOutput should be changed\"},"
+                        + "  \"state\":{\"type\":\"string\",\"description\":\"New default output state string, e.g. occupied or unoccupied\"}"
                         + "},"
                         + "\"required\":[\"ord\",\"state\"]}";
             }

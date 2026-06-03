@@ -29,14 +29,15 @@ public final class NiagaraFaultScanTool {
             @Override public String name() { return "nmcp.fault.scan"; }
 
             @Override public String description() {
-                return "Scans points under a root ORD and summarizes points in fault, stale, or overridden state.";
+                return "Use for read-only health triage across a subtree. Scans points under an allowlisted root and "
+                        + "summarizes fault, stale, and overridden statuses with capped point examples.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"root\":{\"type\":\"string\",\"description\":\"Root ORD to scan (default station:|slot:/Drivers)\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max point matches to return per category\"}"
+                        + "  \"root\":{\"type\":\"string\",\"description\":\"Allowlisted root ORD to scan; default station:|slot:/Drivers\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum point matches to return per status category, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }

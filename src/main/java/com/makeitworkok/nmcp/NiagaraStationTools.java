@@ -40,19 +40,19 @@ public final class NiagaraStationTools {
             @Override public String name() { return "nmcp.station.exportSchema"; }
 
             @Override public String description() {
-                return "Exports station topology JSON for agent memory stores. "
-                        + "Supports selective inclusion of points, devices, schedules, histories, and direct links.";
+                return "Use to build an agent-side station memory snapshot. Exports allowlisted topology JSON with "
+                    + "optional points, devices, schedules, histories, and direct wiresheet links; read-only.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"rootOrd\":{\"type\":\"string\",\"description\":\"Root ORD scope (default station:|slot:/)\"},"
-                        + "  \"includePoints\":{\"type\":\"boolean\",\"description\":\"Include point definitions (default true)\"},"
-                        + "  \"includeDevices\":{\"type\":\"boolean\",\"description\":\"Include device definitions (default true)\"},"
-                        + "  \"includeSchedules\":{\"type\":\"boolean\",\"description\":\"Include schedule definitions (default true)\"},"
-                        + "  \"includeHistories\":{\"type\":\"boolean\",\"description\":\"Include history definitions (default true)\"},"
-                        + "  \"includeLinks\":{\"type\":\"boolean\",\"description\":\"Include direct wiresheet links (default true)\"}"
+                        + "  \"rootOrd\":{\"type\":\"string\",\"description\":\"Allowlisted root ORD scope for export; default station:|slot:/\"},"
+                        + "  \"includePoints\":{\"type\":\"boolean\",\"description\":\"Include point definitions and current value/status fields; default true\"},"
+                        + "  \"includeDevices\":{\"type\":\"boolean\",\"description\":\"Include device definitions and status fields; default true\"},"
+                        + "  \"includeSchedules\":{\"type\":\"boolean\",\"description\":\"Include schedule definitions and current state fields; default true\"},"
+                        + "  \"includeHistories\":{\"type\":\"boolean\",\"description\":\"Include known history identifiers from HistoryService; default true\"},"
+                        + "  \"includeLinks\":{\"type\":\"boolean\",\"description\":\"Include direct wiresheet link records when available from runtime APIs; default true\"}"
                         + "},"
                         + "\"required\":[]}";
             }

@@ -11,13 +11,13 @@ Sensitive slot names (`password`, `secret`, `token`, `key`, `credential`, `auth`
 - BMcpService `readOnly=false`: write-capable tools are allowed to run, still subject to allowlists and tool-specific validation.
 - This selector is persistent in station config and should be treated as an operational change-control toggle.
 
-This reference matches current branch behavior for v0.8.5.
+This reference matches current branch behavior for v0.8.6.
 
 ---
 
-## Tool Inventory (v0.8.5)
+## Tool Inventory (v0.8.6)
 
-v0.8.5 keeps the surface at 40 tools and adds MCP agent identity tracing for every `tools/call`: the optional `X-MCP-Agent` header is sanitized, shown in Application Director, and emitted as Niagara Audit Log `INVOKED` events through `AuditHistoryService`.
+v0.8.6 keeps the surface at 40 tools and hardens nMCP's zero-dependency JSON-RPC helper with top-level array/value parsing, stricter full-document validation, invalid-number rejection, and typed extraction helpers. Tool descriptions and JSON Schema property descriptions are also treated as agent/client context: they call out intent, ORD expectations, dry-run/write-mode behavior, sequencing rules, defaults, and common discovery paths. No `jsonToolkit-wb`, `jsonToolkit-rt`, or `jsonSmart-rt` runtime dependency is required.
 All tool names use the `nmcp.*` namespace.
 
 | Category | Tools |
@@ -71,7 +71,7 @@ curl -X POST http://127.0.0.1:8765/nmcp \
   "osVersion": "10.0",
   "overallCpuUsage": 7,
   "totalPhysicalMemory": 14626736,
-  "moduleVersion": "0.8.5",
+  "moduleVersion": "0.8.6",
   "readOnly": false
 }
 ```
@@ -668,7 +668,7 @@ Returns a synthesized operational briefing: alarms + fault summary + equipment s
 ```json
 {
   "stationName": "mcp",
-  "moduleVersion": "0.8.5",
+  "moduleVersion": "0.8.6",
   "timestamp": 1714346400000,
   "alarmSummary": {
     "totalQueried": 20,

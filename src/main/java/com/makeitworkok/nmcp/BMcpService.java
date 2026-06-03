@@ -44,7 +44,7 @@ public class BMcpService extends BWebServlet {
     public static final Property runtimeProfile = newProperty(Flags.HIDDEN, BString.make(""), null);
 
     public static final Type TYPE = Sys.loadType(BMcpService.class);
-    public static final String MODULE_VERSION = "0.8.5";
+    public static final String MODULE_VERSION = "0.8.6";
 
     private boolean enabled = true;
     private String endpointPath = "/nmcp";

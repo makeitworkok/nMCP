@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # Lessons Learned
 
-This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, v0.8.2, v0.8.3, v0.8.4, and v0.8.5.
+This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, v0.8.2, v0.8.3, v0.8.4, v0.8.5, and v0.8.6.
 
 ---
 
@@ -646,3 +646,21 @@ format to match native Niagara haystack conventions (`h4:*` marker slots, `baja:
 - `X-MCP-Agent` is client-controlled input.
 - Strip characters outside `[a-zA-Z0-9._@-]`, truncate to a small bounded length, and fall back to `unknown` when absent or empty.
 - This preserves useful audit identity while preventing log injection and noisy/unbounded audit fields.
+
+---
+
+## v0.8.6 — JSON Parser Hardening
+
+### 47. `jsonToolkit-wb.jar` is Workbench-side; MCP JSON-RPC should stay runtime-light
+
+- `jsonToolkit-wb.jar` belongs to Workbench UI/editing concerns and should not be a station-runtime dependency for nMCP.
+- The relevant runtime candidates would be `jsonToolkit-rt.jar` or `jsonSmart-rt.jar`, but nMCP's JSON-RPC needs are narrow enough to keep the internal helper dependency-free.
+- The practical improvement path is to harden `NiagaraJson`: public top-level array/value parsing, full-document validation, invalid-number rejection, and typed extraction helpers.
+- This preserves deploy simplicity and avoids module coupling while still learning from the toolkit separation between Workbench, UX, and runtime jars.
+
+### 48. Tool descriptions are part of the MCP client contract
+
+- `description()` and JSON Schema property `description` fields are the context autonomous agents see in `tools/list`; treat them like API contract, not filler text.
+- Good tool metadata should say when to use the tool, what it changes, what ORD shape is expected, what to call before/after, and whether dry-run/debug modes avoid mutation.
+- Write-capable tools should explicitly say `write-mode required`, name the side effect, and explain release/priority semantics where applicable.
+- Wiresheet metadata must carry operational rules agents otherwise miss: use plan/diff before apply, call `linkTo` target-side, and create async point subclasses in a separate call before linking.

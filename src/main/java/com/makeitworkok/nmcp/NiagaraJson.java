@@ -13,8 +13,9 @@ import java.util.Map;
  *
  * <p>Capabilities:
  * <ul>
- *   <li>Parse JSON objects from strings (sufficient for JSON-RPC requests)</li>
+ *   <li>Parse JSON values, objects, and arrays from strings</li>
  *   <li>Build JSON strings from {@link Map} / {@link List} / primitives</li>
+ *   <li>Extract typed values from parsed JSON maps</li>
  * </ul>
  */
 public final class NiagaraJson {
@@ -81,6 +82,17 @@ public final class NiagaraJson {
         } else if (value instanceof Boolean) {
             sb.append(value);
         } else if (value instanceof Number) {
+            if (value instanceof Double) {
+                double d = ((Double) value).doubleValue();
+                if (Double.isNaN(d) || Double.isInfinite(d)) {
+                    throw new IllegalArgumentException("Invalid JSON number: " + value);
+                }
+            } else if (value instanceof Float) {
+                float f = ((Float) value).floatValue();
+                if (Float.isNaN(f) || Float.isInfinite(f)) {
+                    throw new IllegalArgumentException("Invalid JSON number: " + value);
+                }
+            }
             sb.append(value);
         } else if (value instanceof String) {
             sb.append('"').append(escapeString((String) value)).append('"');
@@ -133,12 +145,124 @@ public final class NiagaraJson {
         }
         Parser p = new Parser(json.trim());
         Object result = p.parseValue();
+        p.expectFullyConsumed();
         if (!(result instanceof Map)) {
             throw new IllegalArgumentException("Expected JSON object but got: " + json);
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) result;
         return map;
+    }
+
+    /**
+     * Parses a JSON array string into a {@code List<Object>}.
+     * Returns an empty list on null/empty input.
+     *
+     * @throws IllegalArgumentException if the JSON is not a valid array
+     */
+    public static List<Object> parseArray(String json) {
+        if (json == null || json.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        Parser p = new Parser(json.trim());
+        Object result = p.parseValue();
+        p.expectFullyConsumed();
+        if (!(result instanceof List)) {
+            throw new IllegalArgumentException("Expected JSON array but got: " + json);
+        }
+        @SuppressWarnings("unchecked")
+        List<Object> list = (List<Object>) result;
+        return list;
+    }
+
+    /**
+     * Parses any JSON value: object, array, string, number, boolean, or null.
+     * Returns null on null/empty input.
+     */
+    public static Object parseValue(String json) {
+        if (json == null || json.trim().isEmpty()) {
+            return null;
+        }
+        Parser p = new Parser(json.trim());
+        Object result = p.parseValue();
+        p.expectFullyConsumed();
+        return result;
+    }
+
+    public static String getString(Map<String, Object> map, String key) {
+        return getString(map, key, null);
+    }
+
+    public static String getString(Map<String, Object> map, String key, String defaultValue) {
+        Object value = valueOrNull(map, key);
+        if (value == null) return defaultValue;
+        if (value instanceof String) return (String) value;
+        throw wrongType(key, "string", value);
+    }
+
+    public static Integer getInteger(Map<String, Object> map, String key) {
+        return getInteger(map, key, null);
+    }
+
+    public static Integer getInteger(Map<String, Object> map, String key, Integer defaultValue) {
+        Object value = valueOrNull(map, key);
+        if (value == null) return defaultValue;
+        if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
+            long longValue = ((Number) value).longValue();
+            if (longValue < Integer.MIN_VALUE || longValue > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("JSON integer for key '" + key + "' is outside 32-bit range");
+            }
+            return Integer.valueOf((int) longValue);
+        }
+        throw wrongType(key, "integer", value);
+    }
+
+    public static Double getDouble(Map<String, Object> map, String key) {
+        return getDouble(map, key, null);
+    }
+
+    public static Double getDouble(Map<String, Object> map, String key, Double defaultValue) {
+        Object value = valueOrNull(map, key);
+        if (value == null) return defaultValue;
+        if (value instanceof Number) return Double.valueOf(((Number) value).doubleValue());
+        throw wrongType(key, "number", value);
+    }
+
+    public static Boolean getBoolean(Map<String, Object> map, String key) {
+        return getBoolean(map, key, null);
+    }
+
+    public static Boolean getBoolean(Map<String, Object> map, String key, Boolean defaultValue) {
+        Object value = valueOrNull(map, key);
+        if (value == null) return defaultValue;
+        if (value instanceof Boolean) return (Boolean) value;
+        throw wrongType(key, "boolean", value);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> getObject(Map<String, Object> map, String key) {
+        Object value = valueOrNull(map, key);
+        if (value == null) return null;
+        if (value instanceof Map) return (Map<String, Object>) value;
+        throw wrongType(key, "object", value);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<Object> getList(Map<String, Object> map, String key) {
+        Object value = valueOrNull(map, key);
+        if (value == null) return null;
+        if (value instanceof List) return (List<Object>) value;
+        throw wrongType(key, "array", value);
+    }
+
+    private static Object valueOrNull(Map<String, Object> map, String key) {
+        if (map == null || key == null) return null;
+        return map.get(key);
+    }
+
+    private static IllegalArgumentException wrongType(String key, String expected, Object value) {
+        return new IllegalArgumentException("Expected JSON " + expected + " for key '" + key
+                + "' but got " + value.getClass().getName());
     }
 
     // -------------------------------------------------------------------------
@@ -243,21 +367,46 @@ public final class NiagaraJson {
         Number parseNumber() {
             int start = pos;
             if (pos < src.length() && src.charAt(pos) == '-') pos++;
-            while (pos < src.length() && Character.isDigit(src.charAt(pos))) pos++;
+            int integerStart = pos;
+            if (pos < src.length() && src.charAt(pos) == '0') {
+                pos++;
+                if (pos < src.length() && Character.isDigit(src.charAt(pos))) {
+                    throw new IllegalArgumentException("Invalid leading zero at position " + integerStart);
+                }
+            } else {
+                while (pos < src.length() && Character.isDigit(src.charAt(pos))) pos++;
+            }
+            if (pos == integerStart) {
+                throw new IllegalArgumentException("Expected digit at position " + pos);
+            }
             boolean isDouble = false;
             if (pos < src.length() && src.charAt(pos) == '.') {
                 isDouble = true;
                 pos++;
+                int fractionStart = pos;
                 while (pos < src.length() && Character.isDigit(src.charAt(pos))) pos++;
+                if (pos == fractionStart) {
+                    throw new IllegalArgumentException("Expected digit after decimal point at position " + pos);
+                }
             }
             if (pos < src.length() && (src.charAt(pos) == 'e' || src.charAt(pos) == 'E')) {
                 isDouble = true;
                 pos++;
                 if (pos < src.length() && (src.charAt(pos) == '+' || src.charAt(pos) == '-')) pos++;
+                int exponentStart = pos;
                 while (pos < src.length() && Character.isDigit(src.charAt(pos))) pos++;
+                if (pos == exponentStart) {
+                    throw new IllegalArgumentException("Expected digit in exponent at position " + pos);
+                }
             }
             String numStr = src.substring(start, pos);
-            if (isDouble) return Double.parseDouble(numStr);
+            if (isDouble) {
+                double value = Double.parseDouble(numStr);
+                if (Double.isInfinite(value) || Double.isNaN(value)) {
+                    throw new IllegalArgumentException("Invalid JSON number at position " + start + ": " + numStr);
+                }
+                return value;
+            }
             long lv = Long.parseLong(numStr);
             if (lv >= Integer.MIN_VALUE && lv <= Integer.MAX_VALUE) return (int) lv;
             return lv;
@@ -285,6 +434,13 @@ public final class NiagaraJson {
 
         void skipWhitespace() {
             while (pos < src.length() && Character.isWhitespace(src.charAt(pos))) pos++;
+        }
+
+        void expectFullyConsumed() {
+            skipWhitespace();
+            if (pos < src.length()) {
+                throw new IllegalArgumentException("Unexpected trailing content at position " + pos);
+            }
         }
     }
 }

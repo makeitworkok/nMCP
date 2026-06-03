@@ -37,20 +37,20 @@ public final class NiagaraHistoryWriteTools {
             @Override public String name() { return "nmcp.history.provisionOnPoint"; }
 
             @Override public String description() {
-                return "Creates/configures a Niagara history and attaches it to a point in one call. "
-                        + "Requires readOnly=false and pointOrd within allowlisted roots.";
+                return "Write-mode required. Creates or configures a Niagara history for an allowlisted point ORD and "
+                    + "attaches/enables history collection; use debug=true first to inspect runtime support safely.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"pointOrd\":{\"type\":\"string\",\"description\":\"Point ORD to attach history to\"},"
-                        + "  \"historyId\":{\"type\":\"string\",\"description\":\"History ID/name\"},"
-                        + "  \"enabled\":{\"type\":\"boolean\",\"description\":\"Enable history on the point (default true)\"},"
-                        + "  \"sampleIntervalMs\":{\"type\":\"integer\",\"description\":\"Optional sample interval in ms\"},"
-                        + "  \"retentionCount\":{\"type\":\"integer\",\"description\":\"Optional retention/capacity count\"},"
-                        + "  \"typeOptions\":{\"type\":\"object\",\"description\":\"Type-specific option bag\"},"
-                        + "  \"debug\":{\"type\":\"boolean\",\"description\":\"Return HistoryService reflection details without mutating the station\"}"
+                        + "  \"pointOrd\":{\"type\":\"string\",\"description\":\"Allowlisted point ORD to attach history to\"},"
+                        + "  \"historyId\":{\"type\":\"string\",\"description\":\"Desired Niagara history ID/name; existing histories are reused when found\"},"
+                        + "  \"enabled\":{\"type\":\"boolean\",\"description\":\"Whether history collection should be enabled on the point; default true\"},"
+                        + "  \"sampleIntervalMs\":{\"type\":\"integer\",\"description\":\"Optional sample interval in milliseconds when supported by the point/history extension\"},"
+                        + "  \"retentionCount\":{\"type\":\"integer\",\"description\":\"Optional history retention/capacity count when supported\"},"
+                        + "  \"typeOptions\":{\"type\":\"object\",\"description\":\"Optional type-specific configuration bag passed to supported history extension setters\"},"
+                        + "  \"debug\":{\"type\":\"boolean\",\"description\":\"If true, return HistoryService reflection details without mutating or requiring write mode\"}"
                         + "},"
                         + "\"required\":[\"pointOrd\",\"historyId\"]}";
             }

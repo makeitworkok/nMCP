@@ -50,8 +50,8 @@ public final class NiagaraWiresheetTools {
             @Override public String name() { return "nmcp.wiresheet.schema"; }
 
             @Override public String description() {
-            return "Returns authoritative wiresheet operation schema for autonomous clients. "
-                + "Read-only introspection tool.";
+            return "Use before generating wiresheet operations. Returns the authoritative operation shapes, supported "
+                + "types, and a minimal valid payload so agents can self-correct before plan/diff/apply.";
             }
 
             @Override public String inputSchema() {
@@ -108,15 +108,15 @@ public final class NiagaraWiresheetTools {
             @Override public String name() { return "nmcp.wiresheet.links"; }
 
             @Override public String description() {
-                return "Inspects runtime wiresheet links for a component and optional slot. "
-                        + "Read-only diagnostic tool for validating applied links.";
+                return "Use after apply or during troubleshooting to inspect runtime links on an allowlisted component. "
+                    + "Read-only; optional slot filter helps verify target-side linkTo results.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\"," 
                         + "\"properties\":{"
-                        + "  \"componentOrd\":{\"type\":\"string\",\"description\":\"Component ORD to inspect\"},"
-                        + "  \"slot\":{\"type\":\"string\",\"description\":\"Optional slot name filter (for example out or in10)\"}"
+                        + "  \"componentOrd\":{\"type\":\"string\",\"description\":\"Allowlisted component ORD whose runtime links should be inspected\"},"
+                        + "  \"slot\":{\"type\":\"string\",\"description\":\"Optional slot name filter, e.g. out, in10, inA, controlledVariable\"}"
                         + "},"
                         + "\"required\":[\"componentOrd\"]}";
             }
@@ -168,23 +168,23 @@ public final class NiagaraWiresheetTools {
             @Override public String name() { return "nmcp.wiresheet.layout"; }
 
             @Override public String description() {
-                return "Applies deterministic readability layout rules (no-overlap, left-to-right flow, "
-                        + "comment proximity) by setting wsAnnotation. Dry-run default.";
+                return "Plans or applies deterministic wiresheet readability layout by setting wsAnnotation on child "
+                    + "components. Dry-run is the default; dryRun=false requires write mode and mutates layout only.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\"," 
                         + "\"properties\":{"
-                        + "  \"rootOrd\":{\"type\":\"string\",\"description\":\"Container ORD whose child components are laid out\"},"
-                        + "  \"dryRun\":{\"type\":\"boolean\",\"description\":\"If true, only return planned moves (default true)\"},"
-                        + "  \"originX\":{\"type\":\"integer\",\"description\":\"Grid origin X (default 1)\"},"
-                        + "  \"originY\":{\"type\":\"integer\",\"description\":\"Grid origin Y (default 1)\"},"
-                        + "  \"spacingX\":{\"type\":\"integer\",\"description\":\"Horizontal grid spacing (default 24)\"},"
-                        + "  \"spacingY\":{\"type\":\"integer\",\"description\":\"Vertical grid spacing (default 4)\"},"
-                        + "  \"width\":{\"type\":\"integer\",\"description\":\"wsAnnotation width (default 20)\"},"
-                        + "  \"height\":{\"type\":\"integer\",\"description\":\"wsAnnotation height (default 2)\"},"
-                        + "  \"components\":{\"type\":\"array\",\"description\":\"Optional explicit components for planning/tests\"},"
-                        + "  \"links\":{\"type\":\"array\",\"description\":\"Optional explicit links for topological layering\"}"
+                        + "  \"rootOrd\":{\"type\":\"string\",\"description\":\"Allowlisted container ORD whose child components should be laid out\"},"
+                        + "  \"dryRun\":{\"type\":\"boolean\",\"description\":\"If true, only return planned wsAnnotation moves; default true. false requires write mode\"},"
+                        + "  \"originX\":{\"type\":\"integer\",\"description\":\"Grid origin X for generated wsAnnotation values; default 1\"},"
+                        + "  \"originY\":{\"type\":\"integer\",\"description\":\"Grid origin Y for generated wsAnnotation values; default 1\"},"
+                        + "  \"spacingX\":{\"type\":\"integer\",\"description\":\"Horizontal grid spacing between layout columns; default 24\"},"
+                        + "  \"spacingY\":{\"type\":\"integer\",\"description\":\"Vertical grid spacing between layout rows; default 4\"},"
+                        + "  \"width\":{\"type\":\"integer\",\"description\":\"Default wsAnnotation width assigned to components; default 20\"},"
+                        + "  \"height\":{\"type\":\"integer\",\"description\":\"Default wsAnnotation height assigned to components; default 2\"},"
+                        + "  \"components\":{\"type\":\"array\",\"description\":\"Optional explicit component records for planning/tests; normally omitted so runtime children are discovered\"},"
+                        + "  \"links\":{\"type\":\"array\",\"description\":\"Optional explicit links for topological layering; omit to use runtime/name-based fallback\"}"
                         + "},"
                         + "\"required\":[\"rootOrd\"]}";
             }
@@ -337,8 +337,8 @@ public final class NiagaraWiresheetTools {
             @Override public String name() { return "nmcp.wiresheet.plan"; }
 
             @Override public String description() {
-                return "Validates and normalizes a declarative wiresheet operation list. "
-                        + "Read-only and safe for dry-run planning.";
+                return "Use first in the wiresheet workflow. Validates and normalizes declarative operations without "
+                    + "mutating the station, returning structured errors and an execution order for correction.";
             }
 
             @Override public String inputSchema() {
@@ -373,8 +373,8 @@ public final class NiagaraWiresheetTools {
             @Override public String name() { return "nmcp.wiresheet.diff"; }
 
             @Override public String description() {
-                return "Computes a deterministic desired-state diff from declarative wiresheet operations. "
-                        + "Read-only scaffold for v0.4 MVP.";
+                return "Use after plan to preview intended creates, slot updates, and links. Computes a read-only "
+                    + "desired-state diff from declarative operations without applying station changes.";
             }
 
             @Override public String inputSchema() {
@@ -427,16 +427,16 @@ public final class NiagaraWiresheetTools {
             @Override public String name() { return "nmcp.wiresheet.apply"; }
 
             @Override public String description() {
-                return "Applies declarative wiresheet operations with dry-run default and write-mode gating. "
-                        + "Current v0.4 phase is scaffolded for deterministic execution reporting.";
+                return "Applies declarative wiresheet operations with dry-run default and write-mode gating. Use plan and "
+                    + "diff first; create async point subclasses in one call, then link them in a later call.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"rootOrd\":{\"type\":\"string\",\"description\":\"Allowlisted root ORD for apply scope\"},"
+                        + "  \"rootOrd\":{\"type\":\"string\",\"description\":\"Allowlisted root ORD that bounds every operation in this apply request\"},"
                         + "  \"operations\":{\"type\":\"array\",\"description\":\"Declarative operation list. "
-                        + "Operation types: createComponent, setSlot, link, addCompositePin. "
+                        + "Operation types: createComponent, setSlot, link, addCompositePin. Use nmcp.wiresheet.schema for compact authoritative shapes. "
                         + "createComponent: requires parentOrd, name, componentType. "
                         + "Supported componentType values: "
                         + "control:NumericWritable, control:BooleanWritable, control:EnumWritable, control:StringWritable, "
@@ -465,12 +465,14 @@ public final class NiagaraWiresheetTools {
                         + "NumericSelect/BooleanSelect/EnumSelect: inA..inJ (up to 10 inputs), out. "
                         + "Math/Logic blocks: inA, inB (up to inD for quad blocks). "
                         + "Optional facets: units (string, e.g. degreesFahrenheit), precision (int), min (number), max (number), trueText (string), falseText (string). "
+                        + "Link operations call linkTo on the target side; from is sourceSlot and to is targetSlot. "
+                        + "BNumericPoint/BBooleanPoint subclasses such as LoopPoint, Counter, NumericSwitch, and BooleanSwitch may need create in one apply call and link in a later call after Niagara async init. "
                         + "addCompositePin: requires folderOrd, pinName, targetComponentOrd, targetSlot, "
                         + "direction ('in' or 'out'). pinName must not collide with any existing child component name.\"},"
                         + "  \"strict\":{\"type\":\"boolean\",\"description\":\"Enable strict type checks (default true). "
                         + "When false, kitControl: and baja: prefix types pass validation.\"},"
-                        + "  \"dryRun\":{\"type\":\"boolean\",\"description\":\"If true, no station mutation is attempted (default true)\"},"
-                        + "  \"requestId\":{\"type\":\"string\",\"description\":\"Optional correlation id for logs/replay\"}"
+                        + "  \"dryRun\":{\"type\":\"boolean\",\"description\":\"If true, validate and report planned steps without mutation; default true. false requires write mode\"},"
+                        + "  \"requestId\":{\"type\":\"string\",\"description\":\"Optional client correlation id returned in the response for logs/replay\"}"
                         + "},"
                         + "\"required\":[\"rootOrd\",\"operations\"]}";
             }
@@ -2816,10 +2818,10 @@ public final class NiagaraWiresheetTools {
     private String baseInputSchema() {
         return "{\"type\":\"object\","
                 + "\"properties\":{"
-                + "  \"rootOrd\":{\"type\":\"string\",\"description\":\"Allowlisted root ORD for validation scope\"},"
-                + "  \"operations\":{\"type\":\"array\",\"description\":\"Declarative operation list. "
-                + "createComponent operations accept an optional 'facets' object with keys: "
-                + "units, precision, min, max, trueText, falseText.\"},"
+                + "  \"rootOrd\":{\"type\":\"string\",\"description\":\"Allowlisted root ORD that bounds every operation being planned or diffed\"},"
+                + "  \"operations\":{\"type\":\"array\",\"description\":\"Declarative operation list: createComponent, setSlot, link, addCompositePin. "
+                + "Use nmcp.wiresheet.schema for compact shapes. createComponent accepts optional facets keys: "
+                + "units, precision, min, max, trueText, falseText. Link operations are target-side linkTo; create async point subclasses in a separate call before linking.\"},"
                 + "  \"strict\":{\"type\":\"boolean\",\"description\":\"Enable strict type checks (default true). "
                 + "When false, kitControl:/baja:/nre: prefix types are accepted.\"}"
                 + "},"

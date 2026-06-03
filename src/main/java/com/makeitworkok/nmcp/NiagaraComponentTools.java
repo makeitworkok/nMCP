@@ -59,8 +59,8 @@ public final class NiagaraComponentTools {
             @Override public String name() { return "nmcp.station.info"; }
 
             @Override public String description() {
-                return "Returns basic information about the Niagara station: name, host ID, "
-                        + "Niagara platform version, module version, host/system details, and read-only status.";
+                return "Use first to establish station context: returns station identity, Niagara/platform version, "
+                    + "nMCP module version, host/system details, and current readOnly write-gate status.";
             }
 
             @Override public String inputSchema() {
@@ -138,14 +138,14 @@ public final class NiagaraComponentTools {
             @Override public String name() { return "nmcp.component.read"; }
 
             @Override public String description() {
-                return "Reads a Niagara component by ORD and returns its type, display name, "
-                        + "and a summary of its properties. ORD must be within allowlisted roots.";
+                return "Use after discovery to inspect one Niagara component by ORD. Returns type, display name, "
+                    + "and property summary; sensitive values are masked and ORD must be under an allowlisted root.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Niagara ORD, e.g. station:|slot:/Drivers\"}"
+                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Component ORD under an allowlisted root, e.g. station:|slot:/Drivers/BacnetNetwork/Device1\"}"
                         + "},"
                         + "\"required\":[\"ord\"]}";
             }
@@ -188,15 +188,15 @@ public final class NiagaraComponentTools {
             @Override public String name() { return "nmcp.component.children"; }
 
             @Override public String description() {
-                return "Lists immediate child components under a Niagara ORD. "
-                        + "ORD must be within allowlisted roots.";
+                return "Use for tree navigation one level at a time. Lists immediate child components under an "
+                    + "allowlisted parent ORD; call component.read or component.slots for details on a returned child.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Parent ORD\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max results (default 100)\"}"
+                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Parent component ORD under an allowlisted root, e.g. station:|slot:/Drivers\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum children to return; defaults through BMcpService maxResults, commonly 100\"}"
                         + "},"
                         + "\"required\":[\"ord\"]}";
             }
@@ -257,15 +257,14 @@ public final class NiagaraComponentTools {
             @Override public String name() { return "nmcp.component.slots"; }
 
             @Override public String description() {
-                return "Lists all slots (properties) on a Niagara component identified by ORD. "
-                        + "Sensitive slot values (passwords, keys, tokens) are masked. "
-                        + "ORD must be within allowlisted roots.";
+                return "Use when an agent needs slot names before reading or writing. Lists properties on one "
+                    + "allowlisted component ORD and masks sensitive password/key/token/credential values.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Component ORD\"}"
+                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Component ORD under an allowlisted root whose slots should be listed\"}"
                         + "},"
                         + "\"required\":[\"ord\"]}";
             }
@@ -306,17 +305,17 @@ public final class NiagaraComponentTools {
             @Override public String name() { return "nmcp.component.search"; }
 
             @Override public String description() {
-                return "Searches all components under a root ORD by display name substring and/or type substring. "
-                        + "Returns navigation details only: ORD, name, display name, and type.";
+                return "Use for broad discovery when the exact ORD is unknown. Searches under an allowlisted root by "
+                    + "component/display name and type substring, returning navigation details only.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"nameFilter\":{\"type\":\"string\",\"description\":\"Case-insensitive substring on display name\"},"
-                        + "  \"typeFilter\":{\"type\":\"string\",\"description\":\"Case-insensitive substring on type name\"},"
-                        + "  \"root\":{\"type\":\"string\",\"description\":\"Root ORD to search (default station:|slot:/Drivers)\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max results (default 50)\"}"
+                        + "  \"nameFilter\":{\"type\":\"string\",\"description\":\"Optional case-insensitive substring matched against component name or display name\"},"
+                        + "  \"typeFilter\":{\"type\":\"string\",\"description\":\"Optional case-insensitive substring matched against short or qualified Niagara type, e.g. NumericPoint or control:NumericWritable\"},"
+                        + "  \"root\":{\"type\":\"string\",\"description\":\"Allowlisted root ORD to search; default station:|slot:/Drivers\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum matches to return; default 50 and capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }

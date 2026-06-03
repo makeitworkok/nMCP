@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # nMCP Roadmap
 
-**Current release: v0.8.5** — branch ready to publish
+**Current release: v0.8.6** — JSON parser hardening branch
 
 ---
 
@@ -116,12 +116,20 @@
 - Runtime layout now uses size-aware rectangle placement, visible-slot-driven height estimation, and overlap avoidance for live wiresheet organization.
 - `wsAnnotation` persistence now follows the Workbench controller add-or-set path, and `baja:TextBlock` creation is supported through the runtime wiresheet text block type.
 
-### v0.8.5 — Audit Log Agent Identity ✅ Current
+### v0.8.5 — Audit Log Agent Identity ✅ Done
 - `X-MCP-Agent` request header carries the MCP agent/client identity for every `tools/call`.
 - Agent identity is sanitized server-side before logging or audit emission.
 - Application Director lines now show `user=<agent>` instead of `user=unknown`.
 - Niagara Audit Log receives `AuditEvent.INVOKED` entries through `station:|slot:/Services/AuditHistoryService`, with the tool name as the audited slot and the agent as `userName`.
 - Proxy gains `--agent` so local MCP clients can opt into explicit audit identity without changing token format.
+
+### v0.8.6 — JSON Parser + Tool Metadata Hardening ✅ Current
+- `NiagaraJson` remains zero-dependency and avoids Workbench-side `jsonToolkit-wb.jar` coupling.
+- Public top-level `parseArray` and `parseValue` APIs support non-object JSON values where needed.
+- Parser entry points now reject trailing non-whitespace content after the first JSON document.
+- JSON builders reject `NaN` and infinite `Float`/`Double` values instead of emitting invalid JSON.
+- Typed map extraction helpers reduce cast boilerplate while preserving current `Map`/`List` response shapes.
+- Tool descriptions and schema property descriptions now provide stronger agent/client context for intent, ORD shape, dry-run/write-mode behavior, sequencing rules, defaults, and discovery workflow.
 
 ---
 

@@ -56,15 +56,14 @@ public final class NiagaraAlarmTools {
             @Override public String name() { return "nmcp.alarm.query"; }
 
             @Override public String description() {
-                return "Returns recent alarm records from the station alarm service. "
-                        + "Results are limited to the configured maximum. "
-                        + "Alarm acknowledgement is not supported (read-only).";
+                return "Use for recent alarm history review. Reads alarm records from AlarmService with no side effects; "
+                    + "use nmcp.alarm.ack separately to acknowledge by source ORD.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max alarms to return\"}"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum alarm records to return, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }
@@ -93,14 +92,14 @@ public final class NiagaraAlarmTools {
             @Override public String name() { return "nmcp.alarm.active"; }
 
             @Override public String description() {
-                return "Lists currently active (unacknowledged or unresolved) alarms with source ORD, "
-                        + "alarm class, priority, timestamp, and message.";
+                return "Use for live alarm triage. Lists active, unacknowledged, or unresolved alarms with source ORD, "
+                    + "alarm class, priority, timestamp, and message; read-only with no acknowledgement side effect.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max alarms to return\"}"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum active alarm records to return, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }
@@ -129,18 +128,15 @@ public final class NiagaraAlarmTools {
             @Override public String name() { return "nmcp.alarm.ack"; }
 
             @Override public String description() {
-                return "Acknowledges pending alarms by source ORD. "
-                        + "Requires readOnly=false. "
-                        + "Pass the ORD of the alarm source (e.g. station:|slot:/Drivers/BacnetNetwork/Device1/NumericPoint). "
-                        + "Optional 'note' is recorded in the acknowledgement record. "
-                        + "Returns the count of alarms acknowledged.";
+                return "Write-mode required. Acknowledges pending alarms for an allowlisted source ORD and records "
+                    + "an optional note; use alarm.active or alarm.query first to choose the source ORD.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"sourceOrd\":{\"type\":\"string\",\"description\":\"Source ORD of the alarm to acknowledge\"},"
-                        + "  \"note\":{\"type\":\"string\",\"description\":\"Acknowledgement note (optional)\"}"
+                        + "  \"sourceOrd\":{\"type\":\"string\",\"description\":\"Allowlisted source ORD from an alarm record, e.g. station:|slot:/Drivers/BacnetNetwork/Device1/NumericPoint\"},"
+                        + "  \"note\":{\"type\":\"string\",\"description\":\"Optional acknowledgement note recorded with the alarm ack; default Acknowledged via MCP\"}"
                         + "},"
                         + "\"required\":[\"sourceOrd\"]}";
             }

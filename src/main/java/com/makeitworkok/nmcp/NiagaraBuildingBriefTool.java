@@ -31,13 +31,14 @@ public final class NiagaraBuildingBriefTool {
             @Override public String name() { return "nmcp.building.brief"; }
 
             @Override public String description() {
-                return "Builds an operator-focused morning briefing with alarm, fault, and equipment summaries.";
+                return "Use for a compact operator briefing. Combines active alarms, fault/stale/override counts, "
+                        + "and equipment/device totals into a read-only station summary.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"alarmLimit\":{\"type\":\"integer\",\"description\":\"Max alarms to query (default 20)\"}"
+                        + "  \"alarmLimit\":{\"type\":\"integer\",\"description\":\"Maximum active alarms to include in the briefing; default 20 and capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }

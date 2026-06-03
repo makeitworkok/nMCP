@@ -31,7 +31,7 @@ See [NOTICES.md](NOTICES.md) for full details.
 # nMCP Module
 
 ![Niagara](https://img.shields.io/badge/Niagara-prior%20to%204.13-blue)
-![Version](https://img.shields.io/badge/version-0.8.5-orange)
+![Version](https://img.shields.io/badge/version-0.8.6-orange)
 ![MCP](https://img.shields.io/badge/nmcp-JSON--RPC%202.0-0A7CFF)
 ![Write Gated](https://img.shields.io/badge/Safety-Write--Gated-success)
 ![MCP Agent Verified](https://img.shields.io/badge/MCP%20Agent-Verified-7B61FF)
@@ -72,7 +72,7 @@ allowlist enforcement.
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | Build, install, start proxy, verify end-to-end |
 | [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md) | All 40 tools with arguments, examples, and response shapes |
 | [docs/NIAGARA_OBJECTS_ROADMAP.md](docs/NIAGARA_OBJECTS_ROADMAP.md) | Planned expansions (M1–M5) |
-| [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md) | v0.4.0 through v0.8.5 implementation lessons and operational guidance |
+| [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md) | v0.4.0 through v0.8.6 implementation lessons and operational guidance |
 | [nMCP-client](https://github.com/makeitworkok/nMCP-client) | Lightweight client for calling nMCP tools from scripts and apps |
 
 ---
@@ -190,7 +190,7 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full walkthrough.
 | `nmcp.station.restart` | Write | Request a controlled station restart (write-gated) |
 | `nmcp.driver.discoverAndAdd` | Write | Trigger driver network discovery (write-gated) |
 
-Total tools on branch v0.8.5 development line: 40.
+Total tools on branch v0.8.6 development line: 40.
 
 Full argument and response documentation: [docs/TOOLS_REFERENCE.md](docs/TOOLS_REFERENCE.md)
 
@@ -286,7 +286,8 @@ Any ORD that does not start with one of these roots is immediately rejected.
 | v0.8.2 — Schema Export + Runtime BQL + History Provisioning + Component Search Filtering Hardening| ✅ Done | Added `station.exportSchema` for station topology export, replaced BQL stub with runtime execution in `bql.query`, `component.search` now normalizes filters (trim + casefold) and matches `typeFilter` against both short and qualified Niagara type names, and added write-gated `history.provisionOnPoint` with Niagara 4.15-compatible connection-based history creation fallback |
 | v0.8.3 — BACnet 500 Hardening + Restart Workflow | ✅ Done | Hardened `bacnet.devices` and `bacnet.discover` runtime error handling to return structured MCP errors (no servlet-level HTTP 500 on runtime linkage failures), normalized BACnet ORD handling before allowlist checks |
 | v0.8.4 — Wiresheet Layout + Text Blocks | ✅ Done | Added `nmcp.wiresheet.layout`, shipped runtime `baja:TextBlock`/`baja:WsTextBlock` support, and validated live size-aware non-overlapping wiresheet layout with stabilized `wsAnnotation` persistence |
-| v0.8.5 — Audit Log Agent Identity | ✅ Current | MCP tool calls now emit Niagara Audit Log `INVOKED` events and Application Director lines with the calling agent name; `X-MCP-Agent` carries identity; proxy gains `--agent`; server-side input is sanitized to prevent log injection |
+| v0.8.5 — Audit Log Agent Identity | ✅ Done | MCP tool calls now emit Niagara Audit Log `INVOKED` events and Application Director lines with the calling agent name; `X-MCP-Agent` carries identity; proxy gains `--agent`; server-side input is sanitized to prevent log injection |
+| v0.8.6 — JSON Parser + Tool Metadata Hardening | ✅ Current | Keeps the zero-dependency JSON helper while adding public top-level array/value parsing, full-document trailing-token rejection, safer number serialization, typed map extraction helpers, and richer agent-facing tool/schema descriptions |
 | v0.9+ — Roadmap | 🔜 Planned | Object model enrichment, batch read, relationship traversal — see roadmap |
 
 

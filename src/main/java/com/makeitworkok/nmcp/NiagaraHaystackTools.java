@@ -111,9 +111,8 @@ public final class NiagaraHaystackTools {
             @Override public String name() { return "nmcp.haystack.getRuleset"; }
 
             @Override public String description() {
-                return "Reads the current haystack tagging ruleset JSON file from the station "
-                        + "filesystem. Returns the raw JSON content and the configured file path. "
-                        + "Returns an empty ruleset template if the file does not yet exist.";
+                return "Use before editing or applying Haystack rules. Reads the configured ruleset JSON file from "
+                    + "station storage and returns a template when no file exists; read-only.";
             }
 
             @Override public String inputSchema() {
@@ -154,18 +153,15 @@ public final class NiagaraHaystackTools {
             @Override public String name() { return "nmcp.haystack.setRuleset"; }
 
             @Override public String description() {
-                return "Writes or replaces the haystack tagging ruleset JSON file on the station "
-                        + "filesystem. Requires write mode to be enabled on the MCP service. "
-                        + "The content must be a valid JSON object with a 'rules' array. "
-                        + "Each rule specifies 'conditions' (field/op/value objects) and "
-                        + "'tags' (a map of Haystack tag names to values, use \"m:\" for markers).";
+                return "Write-mode required. Replaces the configured Haystack ruleset JSON file; content must be a "
+                    + "JSON object with rules containing conditions and tags, using m: for marker tags.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
                         + "  \"content\":{\"type\":\"string\","
-                        + "    \"description\":\"Full JSON content of the ruleset file\"}"
+                        + "    \"description\":\"Full ruleset JSON content: object with rules[], each containing conditions[] and tags{}; use m: for marker tag values\"}"
                         + "},"
                         + "\"required\":[\"content\"]}";
             }
@@ -213,22 +209,19 @@ public final class NiagaraHaystackTools {
             @Override public String name() { return "nmcp.haystack.applyRules"; }
 
             @Override public String description() {
-                return "Walks the component tree under the given ORD and applies Project Haystack "
-                        + "tags from the configured ruleset to every matching component. "
-                        + "Requires write mode to be enabled on the MCP service. "
-                        + "Use dryRun=true to preview matches without modifying any components. "
-                        + "Returns a summary of matched components and the tags that were (or would be) applied.";
+                return "Applies the configured Haystack ruleset to matching components under an allowlisted root. "
+                    + "Use dryRun=true to preview safely; dryRun=false requires write mode and writes h4: tag slots.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
                         + "  \"ord\":{\"type\":\"string\","
-                        + "    \"description\":\"Root ORD to scan (default station:|slot:/Config)\"},"
+                        + "    \"description\":\"Allowlisted root ORD to scan for rule matches; default station:|slot:/Config\"},"
                         + "  \"dryRun\":{\"type\":\"boolean\","
-                        + "    \"description\":\"If true, report matches without writing tags (default false)\"},"
+                        + "    \"description\":\"If true, report matches without writing tags; false writes h4: tag slots and requires write mode\"},"
                         + "  \"limit\":{\"type\":\"integer\","
-                        + "    \"description\":\"Max components to inspect\"}"
+                        + "    \"description\":\"Maximum matching components to inspect/apply, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }
@@ -307,20 +300,17 @@ public final class NiagaraHaystackTools {
             @Override public String name() { return "nmcp.haystack.scanPoints"; }
 
             @Override public String description() {
-                return "Walks the component tree under the given ORD and finds all points, "
-                        + "reporting which Project Haystack tags each already carries. "
-                        + "Tags are read from dynamic slots prefixed with 'hs_' (written by "
-                        + "nmcp.haystack.applyRules). Returns totalPoints, taggedPoints, "
-                        + "untaggedPoints, and a per-point breakdown of existing tags.";
+                return "Use to audit current Haystack coverage before suggesting or applying rules. Read-only scan of "
+                    + "points under an allowlisted root, reporting existing h4: tags and tagged/untagged counts.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
                         + "  \"root\":{\"type\":\"string\","
-                        + "    \"description\":\"Root ORD to scan (default station:|slot:/Drivers)\"},"
+                        + "    \"description\":\"Allowlisted root ORD to scan for points; default station:|slot:/Drivers\"},"
                         + "  \"limit\":{\"type\":\"integer\","
-                        + "    \"description\":\"Max points to inspect\"}"
+                        + "    \"description\":\"Maximum points to inspect, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }
@@ -379,20 +369,17 @@ public final class NiagaraHaystackTools {
             @Override public String name() { return "nmcp.haystack.suggestTags"; }
 
             @Override public String description() {
-                return "Discovers all points under the given ORD and suggests Project Haystack tags "
-                        + "for each one based on component type, display name patterns, and parent context. "
-                        + "Returns per-point tag suggestions with reasoning, plus a ready-to-use "
-                        + "ruleset JSON that can be passed directly to nmcp.haystack.setRuleset "
-                        + "and then applied with nmcp.haystack.applyRules.";
+                return "Use to generate a draft Haystack tagging plan. Read-only point discovery under an allowlisted "
+                    + "root returns per-point tag suggestions, reasoning, and a ruleset for setRuleset/applyRules.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
                         + "  \"root\":{\"type\":\"string\","
-                        + "    \"description\":\"Root ORD to scan (default station:|slot:/Drivers)\"},"
+                        + "    \"description\":\"Allowlisted root ORD to scan for point tag suggestions; default station:|slot:/Drivers\"},"
                         + "  \"limit\":{\"type\":\"integer\","
-                        + "    \"description\":\"Max points to inspect\"}"
+                        + "    \"description\":\"Maximum points to inspect, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }

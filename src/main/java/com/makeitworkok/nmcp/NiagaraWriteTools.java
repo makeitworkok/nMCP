@@ -53,17 +53,15 @@ public final class NiagaraWriteTools {
             @Override public String name() { return "nmcp.point.write"; }
 
             @Override public String description() {
-                return "Writes a value to a writable point at operator priority (in10). "
-                        + "Requires readOnly=false and ORD within allowlisted roots. "
-                        + "value must be a number (for NumericWritable) or boolean (for BooleanWritable). "
-                        + "To release the override pass null as value.";
+                return "Write-mode required (BMcpService readOnly=false). Writes a value to an allowlisted writable point at operator priority in10; "
+                    + "pass null to release that priority slot and let lower priorities flow through.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Writable point ORD\"},"
-                        + "  \"value\":{\"description\":\"Value to write (number, boolean, string, or null to release)\"}"
+                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Allowlisted writable point ORD, usually control:NumericWritable or control:BooleanWritable\"},"
+                        + "  \"value\":{\"description\":\"Value for in10: number, boolean, string, or null to release the operator priority slot\"}"
                         + "},"
                         + "\"required\":[\"ord\"]}";
             }
@@ -106,17 +104,15 @@ public final class NiagaraWriteTools {
             @Override public String name() { return "nmcp.point.override"; }
 
             @Override public String description() {
-                return "Writes an operator override (in8 priority) to a writable point. "
-                        + "Higher priority than normal write. "
-                        + "Requires readOnly=false and ORD within allowlisted roots. "
-                        + "Pass null as value to release the override.";
+                return "Write-mode required (BMcpService readOnly=false). Writes an operator override at priority in8 on an allowlisted writable point; "
+                    + "higher priority than point.write, and null releases the override.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Writable point ORD\"},"
-                        + "  \"value\":{\"description\":\"Override value (number, boolean, or null to release)\"}"
+                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Allowlisted writable point ORD to override at priority in8\"},"
+                        + "  \"value\":{\"description\":\"Override value for in8: number, boolean, string, or null to release the override\"}"
                         + "},"
                         + "\"required\":[\"ord\"]}";
             }
@@ -159,19 +155,17 @@ public final class NiagaraWriteTools {
             @Override public String name() { return "nmcp.component.invokeAction"; }
 
             @Override public String description() {
-                return "Invokes a named action on a component. "
-                        + "Common actions: 'active', 'inactive', 'enable', 'disable', 'reset'. "
-                        + "Requires readOnly=false and ORD within allowlisted roots. "
-                        + "Optional 'arg' is passed to the action if it accepts a parameter.";
+                return "Invokes a named action on an allowlisted component. Use debug=true first to inspect action "
+                    + "resolution without mutation; actual invocation requires write mode and may change live state.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Component ORD\"},"
-                        + "  \"action\":{\"type\":\"string\",\"description\":\"Action name (e.g. 'active', 'disable', 'reset')\"},"
-                        + "  \"arg\":{\"description\":\"Optional argument value for the action\"},"
-                        + "  \"debug\":{\"type\":\"boolean\",\"description\":\"Return action-resolution diagnostics without invoking the action\"}"
+                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Allowlisted component ORD that owns the action\"},"
+                        + "  \"action\":{\"type\":\"string\",\"description\":\"Action name, e.g. active, inactive, enable, disable, reset, emergencyAuto\"},"
+                        + "  \"arg\":{\"description\":\"Optional argument value passed only if the action accepts a parameter\"},"
+                        + "  \"debug\":{\"type\":\"boolean\",\"description\":\"If true, return action-resolution diagnostics without invoking or requiring write mode\"}"
                         + "},"
                         + "\"required\":[\"ord\",\"action\"]}";
             }
@@ -220,16 +214,14 @@ public final class NiagaraWriteTools {
             @Override public String name() { return "nmcp.station.restart"; }
 
             @Override public String description() {
-                return "Requests a controlled restart of the Niagara station. "
-                        + "Requires readOnly=false. "
-                        + "This is a destructive, irreversible operation — the station will be unavailable during restart. "
-                        + "Optional 'reason' string is logged before the restart is issued.";
+                return "Write-mode required and disruptive. Requests a controlled Niagara station restart; the station "
+                    + "will be unavailable during restart and the optional reason is logged for audit context.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"reason\":{\"type\":\"string\",\"description\":\"Reason for restart (logged)\"}"
+                        + "  \"reason\":{\"type\":\"string\",\"description\":\"Optional human-readable reason logged before restart; default MCP-initiated restart\"}"
                         + "},"
                         + "\"required\":[]}";
             }
@@ -302,16 +294,14 @@ public final class NiagaraWriteTools {
             @Override public String name() { return "nmcp.driver.discoverAndAdd"; }
 
             @Override public String description() {
-                return "Triggers network discovery on a driver network component and adds discovered devices. "
-                        + "Requires readOnly=false and networkOrd within allowlisted roots. "
-                        + "networkOrd must point to a BIpNetwork or BacnetNetwork component. "
-                        + "Discovery is asynchronous — results appear in the network's device list after completion.";
+                return "Write-mode required. Triggers asynchronous driver-network discovery/add on an allowlisted network; "
+                    + "use bacnet.discover or bacnet.devices afterward to inspect results when discovery completes.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"networkOrd\":{\"type\":\"string\",\"description\":\"Driver network component ORD\"}"
+                        + "  \"networkOrd\":{\"type\":\"string\",\"description\":\"Allowlisted driver network ORD, e.g. station:|slot:/Drivers/BacnetNetwork\"}"
                         + "},"
                         + "\"required\":[\"networkOrd\"]}";
             }

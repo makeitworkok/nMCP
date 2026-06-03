@@ -51,18 +51,16 @@ public final class NiagaraBacnetTools {
             @Override public String name() { return "nmcp.bacnet.devices"; }
 
             @Override public String description() {
-                return "Lists BACnet devices visible under a given BACnet network ORD. "
-                        + "The networkOrd must be within allowlisted roots. "
-                        + "Results include device name, ORD, device ID, address, and status.";
+                return "Use to list provisioned BACnet device components under an allowlisted BACnet network ORD. "
+                    + "Read-only; returns device name, ORD, instance number, address, and network number.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
                         + "  \"networkOrd\":{\"type\":\"string\","
-                        + "    \"description\":\"ORD of the BACnet network, "
-                        + "e.g. station:|slot:/Drivers/BacnetNetwork\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max devices to return\"}"
+                        + "    \"description\":\"Allowlisted BACnet network ORD, e.g. station:|slot:/Drivers/BacnetNetwork\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum provisioned BACnet devices to return, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[\"networkOrd\"]}";
             }
@@ -121,18 +119,16 @@ public final class NiagaraBacnetTools {
             @Override public String name() { return "nmcp.bacnet.discover"; }
 
             @Override public String description() {
-                return "Returns the BACnet stack's in-memory device registry for a network — "
-                        + "all devices heard via WhoIs/IAm, including those not yet provisioned "
-                        + "as station components. Read-only; does not add devices to the station.";
+                return "Use for read-only BACnet discovery insight before provisioning. Returns the network stack's "
+                        + "WhoIs/IAm-heard device registry, including devices not yet added as station components.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
                         + "  \"networkOrd\":{\"type\":\"string\","
-                        + "    \"description\":\"ORD of the BACnet network, "
-                        + "e.g. station:|slot:/Drivers/BacnetNetwork\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max devices to return\"}"
+                        + "    \"description\":\"Allowlisted BACnet network ORD to inspect, e.g. station:|slot:/Drivers/BacnetNetwork\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum heard BACnet devices to return, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[\"networkOrd\"]}";
             }

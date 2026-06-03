@@ -52,17 +52,16 @@ public final class NiagaraBqlTools {
             @Override public String name() { return "nmcp.bql.query"; }
 
             @Override public String description() {
-                return "Executes a read-only BQL SELECT query against the station and returns "
-                        + "results as a JSON array of row objects. Only SELECT queries are allowed. "
-                        + "Results are capped at the configured maximum.";
+                return "Use for ad hoc read-only station queries when traversal tools are not enough. Executes only "
+                    + "SELECT-style BQL, rejects mutation keywords, and returns capped row objects.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"query\":{\"type\":\"string\",\"description\":\"BQL SELECT query\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max result rows\"},"
-                        + "  \"debug\":{\"type\":\"boolean\",\"description\":\"Return BQL runtime/query object reflection details without executing\"}"
+                        + "  \"query\":{\"type\":\"string\",\"description\":\"Read-only BQL SELECT query; mutation keywords are rejected before execution\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum result rows to return, capped by BMcpService maxResults\"},"
+                        + "  \"debug\":{\"type\":\"boolean\",\"description\":\"If true, return BQL runtime/query object reflection details without executing the query\"}"
                         + "},"
                         + "\"required\":[\"query\"]}";
             }

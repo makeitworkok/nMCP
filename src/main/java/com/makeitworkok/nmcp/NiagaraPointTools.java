@@ -45,14 +45,14 @@ public final class NiagaraPointTools {
             @Override public String name() { return "nmcp.point.read"; }
 
             @Override public String description() {
-                return "Reads the current value and status of a single proxy point by ORD. "
-                        + "Returns the out/value slot content. ORD must be within allowlisted roots.";
+                return "Use for targeted live point inspection after discovery. Reads one allowlisted point ORD and "
+                    + "returns display name, type, parsed value, status flags, and raw Niagara value text.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Proxy point ORD\"}"
+                        + "  \"ord\":{\"type\":\"string\",\"description\":\"Proxy or writable point ORD under an allowlisted root, e.g. station:|slot:/Drivers/.../SpaceTemp\"}"
                         + "},"
                         + "\"required\":[\"ord\"]}";
             }
@@ -95,21 +95,20 @@ public final class NiagaraPointTools {
             @Override public String name() { return "nmcp.point.search"; }
 
             @Override public String description() {
-                return "Finds proxy points under the Drivers tree filtered by display name substring "
-                        + "and/or type substring (e.g. 'NumericPoint', 'BooleanPoint'). "
-                        + "Returns ORD, display name, type, and current value for each match.";
+                return "Use to discover point ORDs before reading or writing. Searches an allowlisted subtree by "
+                    + "display name and/or point type and returns ORD, type, current value, status, and raw value text.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
                         + "  \"nameFilter\":{\"type\":\"string\","
-                        + "    \"description\":\"Substring match on display name (case-insensitive)\"},"
+                        + "    \"description\":\"Optional case-insensitive substring matched against point display name\"},"
                         + "  \"typeFilter\":{\"type\":\"string\","
-                        + "    \"description\":\"Substring match on type spec (e.g. NumericPoint)\"},"
+                        + "    \"description\":\"Optional case-insensitive substring matched against point type, e.g. NumericPoint, BooleanPoint, ProxyPoint\"},"
                         + "  \"root\":{\"type\":\"string\","
-                        + "    \"description\":\"Root ORD to search (default station:|slot:/Drivers)\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max results\"}"
+                        + "    \"description\":\"Allowlisted root ORD to search; default station:|slot:/Drivers\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum point matches to return, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }

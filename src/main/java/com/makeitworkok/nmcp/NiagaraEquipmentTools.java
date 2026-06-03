@@ -44,15 +44,14 @@ public final class NiagaraEquipmentTools {
             @Override public String name() { return "nmcp.equipment.status"; }
 
             @Override public String description() {
-                return "Summarizes all devices across all driver networks: name, type, ORD, "
-                        + "child point count, and status slot value. "
-                        + "Answers 'what devices are in the station?' and 'what is offline?'";
+                return "Use for read-only device inventory and health context. Walks the Drivers tree and returns "
+                    + "device name, network, ORD, type, child point count, and status slot value.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max devices to return\"}"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum devices to return, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }

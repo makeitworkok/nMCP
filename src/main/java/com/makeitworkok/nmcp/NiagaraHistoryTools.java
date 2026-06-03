@@ -58,14 +58,14 @@ public final class NiagaraHistoryTools {
             @Override public String name() { return "nmcp.history.list"; }
 
             @Override public String description() {
-                return "Lists known history identifiers available in the station. "
-                        + "Results are limited to the configured maximum.";
+                return "Use before history.read or trend.summary to discover available Niagara history IDs. "
+                    + "Read-only and capped by BMcpService maxResults.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max histories to return\"}"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum history identifiers to return, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[]}";
             }
@@ -106,17 +106,17 @@ public final class NiagaraHistoryTools {
             @Override public String name() { return "nmcp.history.read"; }
 
             @Override public String description() {
-                return "Reads time-series records for a history by ID over an optional time window. "
-                        + "startTime and endTime are epoch milliseconds. limit caps samples returned.";
+                return "Use for raw time-series samples after history.list. Reads one history ID over an optional "
+                    + "epoch-millisecond window and returns capped timestamp/value records.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"id\":{\"type\":\"string\",\"description\":\"History ID from history.list\"},"
-                        + "  \"startTime\":{\"type\":\"integer\",\"description\":\"Start epoch ms (optional)\"},"
-                        + "  \"endTime\":{\"type\":\"integer\",\"description\":\"End epoch ms (optional)\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max samples\"}"
+                        + "  \"id\":{\"type\":\"string\",\"description\":\"History ID exactly as returned by nmcp.history.list\"},"
+                        + "  \"startTime\":{\"type\":\"integer\",\"description\":\"Optional start time as Unix epoch milliseconds; default beginning of history query range\"},"
+                        + "  \"endTime\":{\"type\":\"integer\",\"description\":\"Optional end time as Unix epoch milliseconds; default current time\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum samples to return, capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[\"id\"]}";
             }
@@ -176,16 +176,16 @@ public final class NiagaraHistoryTools {
             @Override public String name() { return "nmcp.trend.summary"; }
 
             @Override public String description() {
-                return "Summarizes a trend over the last N hours with min, max, first, and last values. "
-                        + "Best for operator questions like 'what has space temperature been doing?'";
+                return "Use for quick operator trend questions without downloading every sample. Summarizes a numeric "
+                    + "history over the last N hours with min, max, first, and last values.";
             }
 
             @Override public String inputSchema() {
                 return "{\"type\":\"object\","
                         + "\"properties\":{"
-                        + "  \"id\":{\"type\":\"string\",\"description\":\"History ID from history.list\"},"
-                        + "  \"hours\":{\"type\":\"integer\",\"description\":\"Window size in hours (default 4)\"},"
-                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Max samples to read (default 200)\"}"
+                        + "  \"id\":{\"type\":\"string\",\"description\":\"History ID exactly as returned by nmcp.history.list\"},"
+                        + "  \"hours\":{\"type\":\"integer\",\"description\":\"Lookback window size in hours; default 4\"},"
+                        + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum samples to inspect for the summary; default 200 and capped by BMcpService maxResults\"}"
                         + "},"
                         + "\"required\":[\"id\"]}";
             }
