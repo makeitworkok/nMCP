@@ -188,10 +188,11 @@ class NiagaraWriteToolsTest {
         FakeActionSlot slot = new FakeActionSlot("toggle");
         FakeActionComponent component = new FakeActionComponent(slot);
 
-        String result = (String) method.invoke(tools, component, "toggle", null, null);
+        Object result = method.invoke(tools, component, "toggle", null, null);
 
         assertTrue(slot.invoked);
-        assertTrue(result.contains("action slot"));
+        assertTrue(getInvocationApplied(result));
+        assertTrue(getInvocationDetail(result).contains("action slot"));
     }
 
     @Test
@@ -201,10 +202,11 @@ class NiagaraWriteToolsTest {
         method.setAccessible(true);
 
         FakeReleaseComponent component = new FakeReleaseComponent();
-        String result = (String) method.invoke(tools, component, "release", null, null);
+        Object result = method.invoke(tools, component, "release", null, null);
 
         assertEquals("in8", component.lastSlot);
-        assertTrue(result.contains("released override via in8"));
+        assertTrue(getInvocationApplied(result));
+        assertTrue(getInvocationDetail(result).contains("released override via in8"));
     }
 
     @Test
@@ -214,11 +216,36 @@ class NiagaraWriteToolsTest {
         method.setAccessible(true);
 
         FakeActiveComponent component = new FakeActiveComponent();
-        String result = (String) method.invoke(tools, component, "active", null, null);
+        Object result = method.invoke(tools, component, "active", null, null);
 
         assertTrue(component.invoked);
         assertNotNull(component.arg);
-        assertTrue(result.contains("active(Value)"));
+        assertTrue(getInvocationApplied(result));
+        assertTrue(getInvocationDetail(result).contains("active(Value)"));
+    }
+
+    @Test
+    void invokeAction_reportsFailureWhenNoMethodFound() throws Exception {
+        NiagaraWriteTools tools = new NiagaraWriteTools(writeSecurity());
+        Method method = NiagaraWriteTools.class.getDeclaredMethod("invokeComponentAction", BComponent.class, String.class, Object.class, Context.class);
+        method.setAccessible(true);
+
+        Object result = method.invoke(tools, new FakeNoActionComponent(), "doesNotExist", null, null);
+
+        assertFalse(getInvocationApplied(result));
+        assertTrue(getInvocationDetail(result).contains("no suitable invoke method found"));
+    }
+
+    private boolean getInvocationApplied(Object result) throws Exception {
+        java.lang.reflect.Field field = result.getClass().getDeclaredField("applied");
+        field.setAccessible(true);
+        return ((Boolean) field.get(result)).booleanValue();
+    }
+
+    private String getInvocationDetail(Object result) throws Exception {
+        java.lang.reflect.Field field = result.getClass().getDeclaredField("detail");
+        field.setAccessible(true);
+        return String.valueOf(field.get(result));
     }
 
     // -------------------------------------------------------------------------
@@ -367,6 +394,9 @@ class NiagaraWriteToolsTest {
         public void invoke(Context cx) {
             invoked = true;
         }
+    }
+
+    private static final class FakeNoActionComponent extends BComponent {
     }
 
     public static final class FakeOverrideArg {

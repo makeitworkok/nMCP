@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -38,6 +40,21 @@ class NiagaraEquipmentToolsTest {
         assertNotNull(schema);
         assertTrue(schema.contains("\"type\":\"object\""));
         assertTrue(schema.contains("limit"));
+        assertTrue(schema.contains("networkOrd"));
+        assertTrue(schema.contains("includeDescendants"));
+    }
+
+    @Test
+    void equipmentStatus_networkOrd_checksAllowlistBeforeResolution() {
+        NiagaraEquipmentTools tools = new NiagaraEquipmentTools(security());
+        Map<String, Object> args = new HashMap<String, Object>();
+        args.put("networkOrd", "station:|slot:/Hidden/BacnetNetwork");
+
+        McpToolResult result = tools.tools().get(0).call(args, null);
+
+        assertTrue(result.isError());
+        assertTrue(result.getErrorMessage().toLowerCase().contains("allowlisted")
+                || result.getErrorMessage().toLowerCase().contains("path"));
     }
 
     @Test

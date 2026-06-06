@@ -1,13 +1,11 @@
 // Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License.
 package com.makeitworkok.nmcp;
 
-import javax.baja.bacnet.BBacnetDevice;
-import javax.baja.bacnet.BBacnetNetwork;
-import javax.baja.bacnet.datatypes.BBacnetAddress;
-import javax.baja.bacnet.datatypes.BBacnetObjectIdentifier;
 import javax.baja.sys.BComponent;
 import javax.baja.sys.Context;
 import javax.baja.naming.BOrd;
+import java.lang.reflect.Array;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +25,16 @@ import java.util.logging.Logger;
 public final class NiagaraBacnetTools {
 
     private static final Logger LOG = Logger.getLogger(NiagaraBacnetTools.class.getName());
+
+    private static final String[] BACNET_DEVICE_CLASS_CANDIDATES = new String[] {
+        "javax.baja.bacnet.BBacnetDevice",
+        "com.tridium.bacnet.BBacnetDevice"
+    };
+
+    private static final String[] BACNET_NETWORK_CLASS_CANDIDATES = new String[] {
+        "javax.baja.bacnet.BBacnetNetwork",
+        "com.tridium.bacnet.BBacnetNetwork"
+    };
 
     private final NiagaraSecurity security;
 
@@ -83,6 +91,11 @@ public final class NiagaraBacnetTools {
                     }
                     BComponent network = (BComponent) resolved;
 
+                    BacnetRuntime runtime = detectBacnetRuntime();
+                    if (!runtime.deviceClassAvailable) {
+                        return unsupportedBacnetRuntime("nmcp.bacnet.devices", networkOrd, runtime);
+                    }
+
                     List<Object> deviceList = new ArrayList<>();
                     BComponent[] children = network.getChildComponents();
                     if (children == null) {
@@ -90,9 +103,8 @@ public final class NiagaraBacnetTools {
                     }
                     for (BComponent child : children) {
                         if (deviceList.size() >= effectiveLimit) break;
-                        if (!(child instanceof BBacnetDevice)) continue;
-                        BBacnetDevice dev = (BBacnetDevice) child;
-                        deviceList.add(deviceToMap(dev, normalizedOrd, cx));
+                        if (!isBacnetDevice(child, runtime)) continue;
+                        deviceList.add(deviceToMap(child, normalizedOrd, cx));
                     }
 
                     return McpToolResult.success(NiagaraJson.obj(
@@ -146,19 +158,30 @@ public final class NiagaraBacnetTools {
                     int effectiveLimit = security.effectiveLimit(limit);
 
                     Object resolved = BOrd.make(normalizedOrd).get(null, cx);
-                    if (!(resolved instanceof BBacnetNetwork)) {
-                        return McpToolResult.error(
-                                "ORD did not resolve to a BBacnetNetwork: " + networkOrd);
+                    if (!(resolved instanceof BComponent)) {
+                        return McpToolResult.error("ORD did not resolve to a component: " + networkOrd);
                     }
-                    BBacnetNetwork network = (BBacnetNetwork) resolved;
 
-                    BBacnetDevice[] allDevices = network.getDeviceList();
+                    BacnetRuntime runtime = detectBacnetRuntime();
+                    if (!runtime.networkClassAvailable) {
+                        return unsupportedBacnetRuntime("nmcp.bacnet.discover", networkOrd, runtime);
+                    }
+
+                    Method getDeviceListMethod = findMethod(resolved.getClass(), "getDeviceList");
+                    if (getDeviceListMethod == null) {
+                        return McpToolResult.error("BACnet runtime unsupported: network component does not expose getDeviceList(); "
+                                + "use nmcp.bacnet.devices if provisioned components are present");
+                    }
+
+                    Object allDevices = getDeviceListMethod.invoke(resolved);
                     if (allDevices == null) {
-                        allDevices = new BBacnetDevice[0];
+                        allDevices = new Object[0];
                     }
                     List<Object> deviceList = new ArrayList<>();
-                    for (BBacnetDevice dev : allDevices) {
+                    for (Object dev : toList(allDevices)) {
                         if (deviceList.size() >= effectiveLimit) break;
+                        if (dev == null) continue;
+                        if (!isBacnetDevice(dev, runtime)) continue;
                         deviceList.add(deviceToMap(dev, normalizedOrd, cx));
                     }
 
@@ -181,26 +204,56 @@ public final class NiagaraBacnetTools {
     // Shared helpers
     // -------------------------------------------------------------------------
 
-    private Map<String, Object> deviceToMap(BBacnetDevice dev, String networkOrd, Context cx) {
+    private Map<String, Object> deviceToMap(Object dev, String networkOrd, Context cx) {
         String name = "";
         String devOrd = "";
         int instanceNumber = -1;
         String address = "";
         int networkNumber = 0;
 
-        try { name = dev.getName(); } catch (Throwable ignored) {}
+        try {
+            Method getName = findMethod(dev.getClass(), "getName");
+            if (getName != null) {
+                Object value = getName.invoke(dev);
+                if (value != null) {
+                    name = String.valueOf(value);
+                }
+            }
+        } catch (Throwable ignored) {}
         try {
             devOrd = networkOrd + "/slot:" + name;
         } catch (Throwable ignored) {}
         try {
-            BBacnetObjectIdentifier oid = dev.getObjectId();
-            if (oid != null) instanceNumber = oid.getInstanceNumber();
+            Method getObjectId = findMethod(dev.getClass(), "getObjectId");
+            Object oid = getObjectId != null ? getObjectId.invoke(dev) : null;
+            if (oid != null) {
+                Method getInstanceNumber = findMethod(oid.getClass(), "getInstanceNumber");
+                if (getInstanceNumber != null) {
+                    Object value = getInstanceNumber.invoke(oid);
+                    if (value instanceof Number) {
+                        instanceNumber = ((Number) value).intValue();
+                    }
+                }
+            }
         } catch (Throwable ignored) {}
         try {
-            BBacnetAddress addr = dev.getAddress();
+            Method getAddress = findMethod(dev.getClass(), "getAddress");
+            Object addr = getAddress != null ? getAddress.invoke(dev) : null;
             if (addr != null) {
-                address = addr.toString(cx);
-                networkNumber = addr.getNetworkNumber();
+                Method toStringWithContext = findMethod(addr.getClass(), "toString", Context.class);
+                if (toStringWithContext != null) {
+                    Object value = toStringWithContext.invoke(addr, cx);
+                    address = value != null ? String.valueOf(value) : "";
+                } else {
+                    address = String.valueOf(addr);
+                }
+                Method getNetworkNumber = findMethod(addr.getClass(), "getNetworkNumber");
+                if (getNetworkNumber != null) {
+                    Object value = getNetworkNumber.invoke(addr);
+                    if (value instanceof Number) {
+                        networkNumber = ((Number) value).intValue();
+                    }
+                }
             }
         } catch (Throwable ignored) {}
 
@@ -237,11 +290,90 @@ public final class NiagaraBacnetTools {
         return null;
     }
 
+    private BacnetRuntime detectBacnetRuntime() {
+        Class<?> deviceClass = loadFirstAvailableClass(BACNET_DEVICE_CLASS_CANDIDATES);
+        Class<?> networkClass = loadFirstAvailableClass(BACNET_NETWORK_CLASS_CANDIDATES);
+        return new BacnetRuntime(deviceClass, networkClass);
+    }
+
+    private Class<?> loadFirstAvailableClass(String[] names) {
+        if (names == null) return null;
+        for (String name : names) {
+            try {
+                return Class.forName(name);
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private boolean isBacnetDevice(Object value, BacnetRuntime runtime) {
+        if (value == null) return false;
+        if (runtime.deviceClass != null && runtime.deviceClass.isInstance(value)) {
+            return true;
+        }
+        String name = value.getClass().getName().toLowerCase();
+        return name.contains("bacnet") && name.contains("device");
+    }
+
+    private Method findMethod(Class<?> type, String methodName, Class<?>... parameterTypes) {
+        try {
+            return type.getMethod(methodName, parameterTypes);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private List<Object> toList(Object value) {
+        List<Object> out = new ArrayList<>();
+        if (value == null) {
+            return out;
+        }
+        if (value.getClass().isArray()) {
+            int len = Array.getLength(value);
+            for (int i = 0; i < len; i++) {
+                out.add(Array.get(value, i));
+            }
+            return out;
+        }
+        if (value instanceof Iterable) {
+            for (Object v : (Iterable<?>) value) {
+                out.add(v);
+            }
+            return out;
+        }
+        out.add(value);
+        return out;
+    }
+
+    private McpToolResult unsupportedBacnetRuntime(String toolName, String networkOrd, BacnetRuntime runtime) {
+        String detail = "BACnet runtime unsupported on this station profile; "
+                + "deviceClassAvailable=" + runtime.deviceClassAvailable
+                + ", networkClassAvailable=" + runtime.networkClassAvailable
+                + ". Try validating Niagara BACnet modules/classes for this platform version.";
+        LOG.warning(toolName + " unsupported for " + networkOrd + ": " + detail);
+        return McpToolResult.error(detail);
+    }
+
     private McpToolResult bacnetRuntimeError(String toolName, String rawOrd, String normalizedOrd, Throwable e) {
         String type = e.getClass().getSimpleName();
         String msg = e.getMessage() != null ? e.getMessage() : "(no message)";
         LOG.warning(toolName + " error for " + rawOrd + " [normalized=" + normalizedOrd + "] "
                 + type + ": " + msg);
         return McpToolResult.error("BACnet runtime error [" + type + "]: " + msg);
+    }
+
+    private static final class BacnetRuntime {
+        final Class<?> deviceClass;
+        final Class<?> networkClass;
+        final boolean deviceClassAvailable;
+        final boolean networkClassAvailable;
+
+        BacnetRuntime(Class<?> deviceClass, Class<?> networkClass) {
+            this.deviceClass = deviceClass;
+            this.networkClass = networkClass;
+            this.deviceClassAvailable = deviceClass != null;
+            this.networkClassAvailable = networkClass != null;
+        }
     }
 }

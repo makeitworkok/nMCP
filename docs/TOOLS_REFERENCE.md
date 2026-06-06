@@ -228,9 +228,10 @@ Runs a read-only BQL SELECT query against the Niagara runtime. Mutation keywords
 |---|---|---|---|
 | `query` | string | Yes | BQL SELECT statement |
 | `limit` | integer | No | Max rows to return |
+| `offset` | integer | No | Number of rows to skip before collecting results (must be >= 0) |
 
 **Returns:**
-- `query`, `limit`, `count`, `rows` (existing envelope)
+- `query`, `normalizedQuery`, `limit`, `offset`, `count`, `rows`
 - `truncated` (boolean): true when result row count exceeded limit
 - `engine` (string): runtime BQL class resolved for execution
 
@@ -239,7 +240,7 @@ Runs a read-only BQL SELECT query against the Niagara runtime. Mutation keywords
 curl -X POST http://127.0.0.1:8765/nmcp \
   -H "X-MCP-Token: <token>" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmcp.bql.query","arguments":{"query":"SELECT * FROM control:NumericPoint","limit":50}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmcp.bql.query","arguments":{"query":"SELECT * FROM control:NumericPoint","limit":50,"offset":0}}}'
 ```
 
 ---
@@ -584,6 +585,8 @@ Summarizes all devices across all driver networks: name, type, ORD, child point 
 
 | Name | Type | Required | Description |
 |---|---|---|---|
+| `networkOrd` | string | No | Optional exact network ORD filter (must be allowlisted) |
+| `includeDescendants` | boolean | No | When `networkOrd` is provided, recurse beyond direct device children |
 | `limit` | integer | No | Max devices to return |
 
 **Example request:**
@@ -591,7 +594,7 @@ Summarizes all devices across all driver networks: name, type, ORD, child point 
 curl -X POST http://127.0.0.1:8765/nmcp \
   -H "X-MCP-Token: <token>" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmcp.equipment.status","arguments":{}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmcp.equipment.status","arguments":{"networkOrd":"station:|slot:/Drivers/BacnetNetwork","includeDescendants":false,"limit":100}}}'
 ```
 
 **Example response:**
@@ -621,7 +624,7 @@ curl -X POST http://127.0.0.1:8765/nmcp \
 }
 ```
 
-> **Note:** This tool walks one level below each network in the Drivers tree. Devices nested deeper will not appear.
+> **Note:** Without `networkOrd`, this tool walks one level below each network in the Drivers tree. With `networkOrd` plus `includeDescendants=true`, it recurses below that selected network.
 
 ---
 
@@ -984,6 +987,11 @@ Overrides a writable point at priority 8 (operator override level). Higher urgen
 | `ord` | string | Yes | Component ORD |
 | `action` | string | Yes | Action name (e.g. `active`, `auto`, `override`) |
 | `arg` | string/number | No | Optional action argument |
+| `debug` | boolean | No | If true, returns resolution diagnostics without invoking the action |
+
+**Returns:**
+- `status`: `applied` when an action method was found and invoked; `failed` when no suitable action method was found
+- `detail`: invocation strategy detail or failure reason
 
 ---
 
@@ -1168,7 +1176,7 @@ Useful for validating applied link direction and persisted relation metadata.
 
 Lists BACnet devices **provisioned as station components** under a network ORD (child `BBacnetDevice` instances).
 
-**Runtime compatibility note:** if BACnet runtime classes are unavailable in the station profile, this tool returns a structured MCP error (`BACnet runtime error [...]`) rather than causing a servlet-level HTTP 500.
+**Runtime compatibility note:** if BACnet runtime classes are unavailable in the station profile, this tool returns a structured MCP error (for example `BACnet runtime unsupported ...`) rather than causing a servlet-level HTTP 500.
 
 **Arguments:**
 
@@ -1193,7 +1201,7 @@ curl -X POST http://127.0.0.1:8765/nmcp \
 
 Returns the BACnet stack's **in-memory device registry** — all devices heard via WhoIs/IAm, including devices not yet provisioned as station components. Read-only; does not add devices to the station.
 
-**Runtime compatibility note:** if BACnet runtime classes are unavailable in the station profile, this tool returns a structured MCP error (`BACnet runtime error [...]`) rather than causing a servlet-level HTTP 500.
+**Runtime compatibility note:** if BACnet runtime classes are unavailable in the station profile, this tool returns a structured MCP error (for example `BACnet runtime unsupported ...`) rather than causing a servlet-level HTTP 500.
 
 **Arguments:**
 

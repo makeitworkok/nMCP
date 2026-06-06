@@ -61,6 +61,7 @@ public final class NiagaraBqlTools {
                         + "\"properties\":{"
                         + "  \"query\":{\"type\":\"string\",\"description\":\"Read-only BQL SELECT query; mutation keywords are rejected before execution\"},"
                         + "  \"limit\":{\"type\":\"integer\",\"description\":\"Maximum result rows to return, capped by BMcpService maxResults\"},"
+                        + "  \"offset\":{\"type\":\"integer\",\"description\":\"Number of result rows to skip before collecting rows; must be >= 0\"},"
                         + "  \"debug\":{\"type\":\"boolean\",\"description\":\"If true, return BQL runtime/query object reflection details without executing the query\"}"
                         + "},"
                         + "\"required\":[\"query\"]}";
@@ -73,22 +74,32 @@ public final class NiagaraBqlTools {
                 }
                 String query = normalizeBqlQuery(inputQuery);
                 Integer limit = getIntArg(arguments, "limit");
+                Integer offset = getIntArg(arguments, "offset");
                 boolean debug = getBooleanArg(arguments, "debug", false);
+
+                if (arguments.containsKey("offset") && offset == null) {
+                    return McpToolResult.error("Invalid argument: offset must be an integer >= 0");
+                }
+                if (offset != null && offset.intValue() < 0) {
+                    return McpToolResult.error("Invalid argument: offset must be >= 0");
+                }
+                int effectiveOffset = offset != null ? offset.intValue() : 0;
 
                 try {
                     security.checkBqlQuery(query);
                     int effectiveLimit = security.effectiveLimit(limit);
 
                     if (debug) {
-                        return McpToolResult.success(createBqlDebugReport(inputQuery, query, effectiveLimit));
+                        return McpToolResult.success(createBqlDebugReport(inputQuery, query, effectiveLimit, effectiveOffset));
                     }
 
-                    QueryExecution execution = executeBql(query, effectiveLimit, cx);
+                    QueryExecution execution = executeBql(query, effectiveLimit, effectiveOffset, cx);
 
                     Map<String, Object> result = NiagaraJson.obj(
                             "query",   inputQuery,
                             "normalizedQuery", query,
                             "limit",   effectiveLimit,
+                            "offset",  effectiveOffset,
                         "count",   execution.rows.size(),
                         "rows",    execution.rows,
                         "truncated", execution.truncated,
@@ -106,11 +117,13 @@ public final class NiagaraBqlTools {
         };
     }
 
-    private Map<String, Object> createBqlDebugReport(String inputQuery, String normalizedQuery, int effectiveLimit) {
+    private Map<String, Object> createBqlDebugReport(String inputQuery, String normalizedQuery,
+                                                     int effectiveLimit, int effectiveOffset) {
         Map<String, Object> report = NiagaraJson.obj(
                 "query", inputQuery,
                 "normalizedQuery", normalizedQuery,
                 "limit", Integer.valueOf(effectiveLimit),
+                "offset", Integer.valueOf(effectiveOffset),
                 "debug", Boolean.TRUE
         );
 
@@ -137,12 +150,13 @@ public final class NiagaraBqlTools {
         return report;
     }
 
-    private QueryExecution executeBql(String query, int effectiveLimit, Context cx) throws Exception {
+    private QueryExecution executeBql(String query, int effectiveLimit, int effectiveOffset,
+                                      Context cx) throws Exception {
         // Niagara 4.15 commonly supports ORD-based BQL execution even when query-object
         // execute/cursor methods are absent, so prefer ORD resolution first.
         CursorExecution ordCursor = executeViaOrd(query, cx);
         if (ordCursor != null && ordCursor.cursor != null) {
-            return readCursorRows(ordCursor, effectiveLimit);
+            return readCursorRows(ordCursor, effectiveLimit, effectiveOffset);
         }
 
         Class<?> bqlClass = findBqlClass();
@@ -156,13 +170,15 @@ public final class NiagaraBqlTools {
             return new QueryExecution(new ArrayList<Object>(), false, cursorExecution.engineClass);
         }
 
-        return readCursorRows(cursorExecution, effectiveLimit);
+        return readCursorRows(cursorExecution, effectiveLimit, effectiveOffset);
     }
 
-    private QueryExecution readCursorRows(CursorExecution cursorExecution, int effectiveLimit) throws Exception {
+    private QueryExecution readCursorRows(CursorExecution cursorExecution, int effectiveLimit,
+                                          int effectiveOffset) throws Exception {
         Object cursor = cursorExecution.cursor;
         List<Object> rows = new ArrayList<>();
         boolean truncated = false;
+        int skipped = 0;
         Method nextMethod = findMethod(cursor.getClass(), "next");
         Method getMethod = findMethod(cursor.getClass(), "get");
         Method closeMethod = findMethod(cursor.getClass(), "close");
@@ -172,6 +188,10 @@ public final class NiagaraBqlTools {
 
         try {
             while (Boolean.TRUE.equals(nextMethod.invoke(cursor))) {
+                if (skipped < effectiveOffset) {
+                    skipped++;
+                    continue;
+                }
                 if (rows.size() >= effectiveLimit) {
                     truncated = true;
                     break;

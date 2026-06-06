@@ -50,7 +50,8 @@ public final class NiagaraBuildingBriefTool {
                     List<Object> unackedAlarms = NiagaraAlarmTools.fetchAlarms(alarmLimit, true, cx);
                     Map<String, Object> faultSummary = NiagaraFaultScanTool.scanFaults(
                             security, "station:|slot:/Drivers", security.effectiveLimit(Integer.valueOf(10)), cx);
-                    List<Object> devices = NiagaraEquipmentTools.collectDevices(security.effectiveLimit(null), cx);
+                        List<Object> devices = NiagaraEquipmentTools.collectDevices(
+                            security.effectiveLimit(null), cx, null, null, false);
 
                     Set<String> networks = new LinkedHashSet<>();
                     for (Object obj : devices) {

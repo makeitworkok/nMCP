@@ -189,12 +189,12 @@ public final class NiagaraWriteTools {
                         return McpToolResult.error("ORD did not resolve to a component: " + ord);
                     }
                     BComponent comp = (BComponent) obj;
-                    String result = invokeComponentAction(comp, action, arg, cx);
+                    ActionInvocationResult result = invokeComponentAction(comp, action, arg, cx);
                     return McpToolResult.success(NiagaraJson.obj(
                             "ord", ord,
                             "action", action,
-                            "status", "applied",
-                            "detail", result));
+                            "status", result.applied ? "applied" : "failed",
+                            "detail", result.detail));
                 } catch (NiagaraSecurity.McpSecurityException e) {
                     return McpToolResult.error(e.getMessage());
                 } catch (Throwable e) {
@@ -399,13 +399,13 @@ public final class NiagaraWriteTools {
      * Invokes a named action on a component.
      * Tries {@code invoke(String, BValue, Context)} and {@code invoke(Slot, BValue, Context)}.
      */
-    private String invokeComponentAction(BComponent comp, String actionName, Object arg, Context cx) {
+    private ActionInvocationResult invokeComponentAction(BComponent comp, String actionName, Object arg, Context cx) {
         Object barg = arg != null ? toBValue(arg) : null;
 
         if (isReleaseAction(actionName)) {
             String releaseResult = invokePointWrite(comp, "in8", null, cx);
             if (!releaseResult.startsWith("no suitable write method found")) {
-                return "released override via in8 (" + releaseResult + ")";
+                return actionApplied("released override via in8 (" + releaseResult + ")");
             }
         }
 
@@ -413,7 +413,7 @@ public final class NiagaraWriteTools {
         if (actionSlot != null) {
             String slotResult = invokeActionSlot(comp, actionSlot, barg, cx);
             if (slotResult != null) {
-                return slotResult;
+                return actionApplied(slotResult);
             }
         }
 
@@ -424,7 +424,7 @@ public final class NiagaraWriteTools {
                 try {
                     if (params.length == 3 && String.class.equals(params[0])) {
                         m.invoke(comp, actionName, barg, cx);
-                        return "invoked via invoke(String, BValue, Context)";
+                        return actionApplied("invoked via invoke(String, BValue, Context)");
                     }
                 } catch (Throwable e) {
                     LOG.fine("invoke(String,...) failed: " + e);
@@ -447,7 +447,7 @@ public final class NiagaraWriteTools {
                     if ("invoke".equals(m.getName()) && m.getParameterTypes().length == 3
                             && javax.baja.sys.Slot.class.isAssignableFrom(m.getParameterTypes()[0])) {
                         m.invoke(comp, slot, barg, cx);
-                        return "invoked via invoke(Slot, BValue, Context)";
+                        return actionApplied("invoked via invoke(Slot, BValue, Context)");
                     }
                 }
             }
@@ -461,11 +461,11 @@ public final class NiagaraWriteTools {
                 try {
                     if (m.getParameterTypes().length == 0) {
                         m.invoke(comp);
-                        return "invoked via " + actionName + "()";
+                        return actionApplied("invoked via " + actionName + "()");
                     } else if (m.getParameterTypes().length == 1
                             && Context.class.isAssignableFrom(m.getParameterTypes()[0])) {
                         m.invoke(comp, cx);
-                        return "invoked via " + actionName + "(Context)";
+                        return actionApplied("invoked via " + actionName + "(Context)");
                     } else if (m.getParameterTypes().length == 1
                             && !Context.class.isAssignableFrom(m.getParameterTypes()[0])) {
                         Object converted = convertValueForType(barg, m.getParameterTypes()[0]);
@@ -479,7 +479,7 @@ public final class NiagaraWriteTools {
                             continue;
                         }
                         m.invoke(comp, converted);
-                        return "invoked via " + actionName + "(Value)";
+                        return actionApplied("invoked via " + actionName + "(Value)");
                     } else if (m.getParameterTypes().length == 2
                             && !Context.class.isAssignableFrom(m.getParameterTypes()[0])
                             && Context.class.isAssignableFrom(m.getParameterTypes()[1])) {
@@ -494,7 +494,7 @@ public final class NiagaraWriteTools {
                             continue;
                         }
                         m.invoke(comp, converted, cx);
-                        return "invoked via " + actionName + "(Value, Context)";
+                        return actionApplied("invoked via " + actionName + "(Value, Context)");
                     }
                 } catch (Throwable e) {
                     LOG.fine(actionName + "() invocation failed: " + e);
@@ -502,7 +502,15 @@ public final class NiagaraWriteTools {
             }
         }
 
-        return "no suitable invoke method found for action '" + actionName + "'";
+        return actionFailed("no suitable invoke method found for action '" + actionName + "'");
+    }
+
+    private ActionInvocationResult actionApplied(String detail) {
+        return new ActionInvocationResult(true, detail);
+    }
+
+    private ActionInvocationResult actionFailed(String detail) {
+        return new ActionInvocationResult(false, detail);
     }
 
     private boolean isReleaseAction(String actionName) {
@@ -945,6 +953,16 @@ public final class NiagaraWriteTools {
     }
 
     private static final Object UNSET = new Object();
+
+    private static final class ActionInvocationResult {
+        final boolean applied;
+        final String detail;
+
+        ActionInvocationResult(boolean applied, String detail) {
+            this.applied = applied;
+            this.detail = detail;
+        }
+    }
 
     private static String localOrd(String ord) {
         if (ord == null) return null;

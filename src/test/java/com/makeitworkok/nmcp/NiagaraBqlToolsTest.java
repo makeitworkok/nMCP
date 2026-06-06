@@ -71,7 +71,21 @@ class NiagaraBqlToolsTest {
         String schema = tools.tools().get(0).inputSchema();
         assertTrue(schema.contains("\"query\""));
         assertTrue(schema.contains("\"limit\""));
+        assertTrue(schema.contains("\"offset\""));
         assertTrue(schema.contains("\"debug\""));
+    }
+
+    @Test
+    void bqlQuery_rejectsNegativeOffset() {
+        NiagaraBqlTools tools = new NiagaraBqlTools(security(true));
+        Map<String, Object> args = new HashMap<String, Object>();
+        args.put("query", "SELECT * FROM control:NumericPoint");
+        args.put("offset", Integer.valueOf(-1));
+
+        McpToolResult result = tools.tools().get(0).call(args, null);
+
+        assertTrue(result.isError());
+        assertTrue(result.getErrorMessage().contains("offset"));
     }
 
     @Test
@@ -80,11 +94,13 @@ class NiagaraBqlToolsTest {
         Map<String, Object> args = new HashMap<String, Object>();
         args.put("query", "station:|slot:/|bql:select name from control:ControlPoint");
         args.put("debug", Boolean.TRUE);
+        args.put("offset", Integer.valueOf(3));
 
         McpToolResult result = tools.tools().get(0).call(args, null);
 
         assertFalse(result.isError());
         assertTrue(result.getContent().contains("\"debug\":true"));
+        assertTrue(result.getContent().contains("\"offset\":3"));
         assertTrue(result.getContent().contains("\"normalizedQuery\":\"select name from control:ControlPoint\""));
     }
 }
