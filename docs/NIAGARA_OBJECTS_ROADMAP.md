@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # nMCP Roadmap
 
-**Current release: v0.8.6** — JSON parser hardening branch
+**Current release: v0.8.8** — approved-agent allowlist enforcement branch
 
 ---
 
@@ -123,13 +123,26 @@
 - Niagara Audit Log receives `AuditEvent.INVOKED` entries through `station:|slot:/Services/AuditHistoryService`, with the tool name as the audited slot and the agent as `userName`.
 - Proxy gains `--agent` so local MCP clients can opt into explicit audit identity without changing token format.
 
-### v0.8.6 — JSON Parser + Tool Metadata Hardening ✅ Current
+### v0.8.6 — JSON Parser + Tool Metadata Hardening ✅ Done
 - `NiagaraJson` remains zero-dependency and avoids Workbench-side `jsonToolkit-wb.jar` coupling.
 - Public top-level `parseArray` and `parseValue` APIs support non-object JSON values where needed.
 - Parser entry points now reject trailing non-whitespace content after the first JSON document.
 - JSON builders reject `NaN` and infinite `Float`/`Double` values instead of emitting invalid JSON.
 - Typed map extraction helpers reduce cast boilerplate while preserving current `Map`/`List` response shapes.
 - Tool descriptions and schema property descriptions now provide stronger agent/client context for intent, ORD shape, dry-run/write-mode behavior, sequencing rules, defaults, and discovery workflow.
+
+### v0.8.7 — Device Profiling + Runtime Hardening ✅ Done
+- Added `nmcp.device.profile` for one-call newly-added-device capability profiling.
+- Added BQL offset support and response offset reporting for predictable pagination.
+- Corrected `component.invokeAction` to return applied/failed based on actual invocation.
+- Added BACnet runtime compatibility handling with structured unsupported-runtime responses.
+- Expanded `equipment.status` filtering with `networkOrd` and `includeDescendants` controls.
+
+### v0.8.8 — Approved Agent Allowlist Enforcement ✅ Current
+- Added BMcpService hidden slots: `requireAgentIdentity`, `approvedAgents`, `requireApprovedAgent`.
+- Added fail-closed enforcement responses: `MissingAgent` (HTTP 400) and `UnapprovedAgent` (HTTP 403).
+- Added system-property overrides for enforcement and CSV allowlist configuration.
+- Validated end-to-end behavior via proxy and direct live station calls.
 
 ---
 

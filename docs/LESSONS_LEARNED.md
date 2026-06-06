@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Chris Favre. This cover is licensed under the MIT License. -->
 # Lessons Learned
 
-This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, v0.8.2, v0.8.3, v0.8.4, v0.8.5, and v0.8.6.
+This document captures implementation and operational lessons accumulated across v0.4.0, v0.5.0, v0.5.1, v0.5.2, v0.6.x, v0.7.0, v0.8.0, v0.8.2, v0.8.3, v0.8.4, v0.8.5, v0.8.6, v0.8.7, and v0.8.8.
 
 ---
 

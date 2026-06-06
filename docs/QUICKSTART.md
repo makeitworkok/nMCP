@@ -98,7 +98,7 @@ Expected response (JSON with your auto-generated token):
 }
 ```
 
-Expected station startup logs for v0.8.6:
+Expected station startup logs for v0.8.8:
 
 - `BMcpService: detected Niagara platform version <x.y.z>`
 - On Niagara 4.13+: `EULA of the version 4.13 and greater forbids use of AI, see Section 3.1(q) for details.`

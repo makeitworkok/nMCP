@@ -26,13 +26,13 @@ Sensitive slot names (`password`, `secret`, `token`, `key`, `credential`, `auth`
 - If enforcement is enabled and `approvedAgents` is empty, all requests are rejected (fail-closed behavior).
 - System property overrides are available: `nmcp.mcp.requireApprovedAgent=true` and `nmcp.mcp.approvedAgents=<csv>`.
 
-This reference matches current branch behavior for v0.8.7.
+This reference matches current branch behavior for v0.8.8.
 
 ---
 
-## Tool Inventory (v0.8.7)
+## Tool Inventory (v0.8.8)
 
-v0.8.7 keeps the surface at 41 tools and adds device onboarding profiling for newly added equipment. Tool descriptions and JSON Schema property descriptions are treated as agent/client context: they call out intent, ORD expectations, dry-run/write-mode behavior, sequencing rules, defaults, and common discovery paths.
+v0.8.8 keeps the surface at 41 tools, includes device onboarding profiling, and adds enforceable approved-agent allowlist controls on BMcpService. Tool descriptions and JSON Schema property descriptions are treated as agent/client context: they call out intent, ORD expectations, dry-run/write-mode behavior, sequencing rules, defaults, and common discovery paths.
 All tool names use the `nmcp.*` namespace.
 
 | Category | Tools |
@@ -87,7 +87,7 @@ curl -X POST http://127.0.0.1:8765/nmcp \
   "osVersion": "10.0",
   "overallCpuUsage": 7,
   "totalPhysicalMemory": 14626736,
-  "moduleVersion": "0.8.6",
+  "moduleVersion": "0.8.8",
   "readOnly": false
 }
 ```
@@ -716,7 +716,7 @@ Returns a synthesized operational briefing: alarms + fault summary + equipment s
 ```json
 {
   "stationName": "mcp",
-  "moduleVersion": "0.8.6",
+  "moduleVersion": "0.8.8",
   "timestamp": 1714346400000,
   "alarmSummary": {
     "totalQueried": 20,
