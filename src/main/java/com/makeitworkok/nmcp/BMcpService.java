@@ -41,10 +41,13 @@ public class BMcpService extends BWebServlet {
 
     // Hidden property to keep UI clean; configure via Workbench Config or programmatically
     public static final Property readOnly = newProperty(Flags.HIDDEN, BBoolean.TRUE, null);
+    public static final Property requireAgentIdentity = newProperty(Flags.HIDDEN, BBoolean.FALSE, null);
+    public static final Property requireApprovedAgent = newProperty(Flags.HIDDEN, BBoolean.FALSE, null);
+    public static final Property approvedAgents = newProperty(Flags.HIDDEN, BString.make(""), null);
     public static final Property runtimeProfile = newProperty(Flags.HIDDEN, BString.make(""), null);
 
     public static final Type TYPE = Sys.loadType(BMcpService.class);
-    public static final String MODULE_VERSION = "0.8.6";
+    public static final String MODULE_VERSION = "0.8.7";
 
     private boolean enabled = true;
     private String endpointPath = "/nmcp";
@@ -55,6 +58,7 @@ public class BMcpService extends BWebServlet {
             "station:|slot:/Drivers,station:|slot:/Services,station:|slot:/Config";
     private boolean requireToken = true;
     private String mcpToken = "";
+    private String approvedAgentsValue = "";
         private String runtimeProfileValue = "";
     private boolean eulaBlocked = false;
     private String eulaBlockedReason = "";
@@ -99,6 +103,18 @@ public class BMcpService extends BWebServlet {
         String tokenProperty = System.getProperty("nmcp.mcp.token");
         if (tokenProperty != null) {
             mcpToken = tokenProperty.trim();
+        }
+        String requireAgentProperty = System.getProperty("nmcp.mcp.requireAgent");
+        if (requireAgentProperty != null) {
+            setRequireAgentIdentity(Boolean.parseBoolean(requireAgentProperty));
+        }
+        String requireApprovedAgentProperty = System.getProperty("nmcp.mcp.requireApprovedAgent");
+        if (requireApprovedAgentProperty != null) {
+            setRequireApprovedAgent(Boolean.parseBoolean(requireApprovedAgentProperty));
+        }
+        String approvedAgentsProperty = System.getProperty("nmcp.mcp.approvedAgents");
+        if (approvedAgentsProperty != null) {
+            setApprovedAgents(approvedAgentsProperty);
         }
 
         if (requireToken && (mcpToken == null || mcpToken.trim().isEmpty())) {
@@ -147,12 +163,22 @@ public class BMcpService extends BWebServlet {
                 return;
             }
 
+            String agentIdentity = extractAgentIdentity(req);
+            if (isRequireAgentIdentity() && "unknown".equals(agentIdentity)) {
+                writeMissingAgent(resp);
+                return;
+            }
+            if (isRequireApprovedAgent() && !isAgentApproved(agentIdentity)) {
+                writeUnapprovedAgent(resp, agentIdentity);
+                return;
+            }
+
             String body = readBody(req);
             if (handler == null) {
                 writeServiceUnavailable(resp);
                 return;
             }
-            String response = handler.handle(body, null, extractAgentIdentity(req));
+            String response = handler.handle(body, null, agentIdentity);
 
             resp.setStatus(200);
             resp.setContentType(CONTENT_TYPE_JSON);
@@ -190,6 +216,10 @@ public class BMcpService extends BWebServlet {
                             + "\"status\":\"ok\","
                             + "\"message\":\"MCP endpoint is running. Use POST for JSON-RPC.\","
                             + "\"tokenHeader\":\"X-MCP-Token\","
+                            + "\"agentHeader\":\"X-MCP-Agent\","
+                            + "\"requireAgent\":" + (isRequireAgentIdentity() ? "true" : "false") + ","
+                            + "\"requireApprovedAgent\":" + (isRequireApprovedAgent() ? "true" : "false") + ","
+                            + "\"approvedAgents\":\"" + jsonEscape(getApprovedAgents()) + "\","
                             + "\"token\":\"" + jsonEscape(tokenValue) + "\""
                             + "}");
         } catch (Throwable e) {
@@ -208,6 +238,7 @@ public class BMcpService extends BWebServlet {
         new NiagaraScheduleTools(security).tools().forEach(registry::register);
         new NiagaraPointTools(security).tools().forEach(registry::register);
         new NiagaraEquipmentTools(security).tools().forEach(registry::register);
+        new NiagaraDeviceProfileTool(security).tools().forEach(registry::register);
         new NiagaraFaultScanTool(security).tools().forEach(registry::register);
         new NiagaraBuildingBriefTool(security).tools().forEach(registry::register);
         new NiagaraHaystackTools(security, haystackRulesetPath).tools().forEach(registry::register);
@@ -244,14 +275,35 @@ public class BMcpService extends BWebServlet {
      */
     private String extractAgentIdentity(HttpServletRequest req) {
         String raw = req.getHeader(MCP_AGENT_HEADER);
-        if (raw == null || raw.trim().isEmpty()) {
-            return "unknown";
-        }
-        String sanitized = AGENT_NAME_PATTERN.matcher(raw.trim()).replaceAll("");
+        String sanitized = sanitizeAgentName(raw);
         if (sanitized.isEmpty()) {
             return "unknown";
         }
         return sanitized.length() > 64 ? sanitized.substring(0, 64) : sanitized;
+    }
+
+    private String sanitizeAgentName(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return "";
+        }
+        return AGENT_NAME_PATTERN.matcher(raw.trim()).replaceAll("");
+    }
+
+    private boolean isAgentApproved(String agentIdentity) {
+        if (!isNonEmpty(agentIdentity) || "unknown".equals(agentIdentity)) {
+            return false;
+        }
+        String configured = getApprovedAgents();
+        if (!isNonEmpty(configured)) {
+            return false;
+        }
+        for (String rawValue : configured.split(",")) {
+            String approved = sanitizeAgentName(rawValue);
+            if (isNonEmpty(approved) && approved.equalsIgnoreCase(agentIdentity)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isAuthorized(HttpServletRequest req) {
@@ -307,6 +359,21 @@ public class BMcpService extends BWebServlet {
         resp.setStatus(401);
         resp.setContentType(CONTENT_TYPE_JSON);
         writeBody(resp, "{\"error\":\"Unauthorized\",\"message\":\"Missing or invalid X-MCP-Token\"}");
+    }
+
+    private void writeMissingAgent(HttpServletResponse resp) throws IOException {
+        resp.setStatus(400);
+        resp.setContentType(CONTENT_TYPE_JSON);
+        writeBody(resp, "{\"error\":\"MissingAgent\",\"message\":\"Missing required X-MCP-Agent header\"}");
+    }
+
+    private void writeUnapprovedAgent(HttpServletResponse resp, String agentIdentity) throws IOException {
+        resp.setStatus(403);
+        resp.setContentType(CONTENT_TYPE_JSON);
+        writeBody(resp,
+                "{\"error\":\"UnapprovedAgent\",\"message\":\"X-MCP-Agent is not in approvedAgents allowlist\",\"agent\":\""
+                        + jsonEscape(agentIdentity)
+                        + "\"}");
     }
 
     private void writeServiceUnavailable(HttpServletResponse resp) throws IOException {
@@ -785,6 +852,29 @@ public class BMcpService extends BWebServlet {
 
     public boolean isRequireToken() { return requireToken; }
     public void setRequireToken(boolean v) { requireToken = v; }
+
+    public boolean getRequireAgentIdentity() { return getBoolean(requireAgentIdentity); }
+    public void setRequireAgentIdentity(boolean v) { setBoolean(requireAgentIdentity, v, null); }
+    public boolean isRequireAgentIdentity() { return getRequireAgentIdentity(); }
+
+    public boolean getRequireApprovedAgent() { return getBoolean(requireApprovedAgent); }
+    public void setRequireApprovedAgent(boolean v) { setBoolean(requireApprovedAgent, v, null); }
+    public boolean isRequireApprovedAgent() { return getRequireApprovedAgent(); }
+
+    public String getApprovedAgents() {
+        String fromSlot = readStringSlot("approvedAgents");
+        if (isNonEmpty(fromSlot)) {
+            return fromSlot;
+        }
+        return approvedAgentsValue;
+    }
+    public void setApprovedAgents(String value) {
+        approvedAgentsValue = value == null ? "" : value;
+        try {
+            set("approvedAgents", BString.make(approvedAgentsValue));
+        } catch (Throwable ignored) {
+        }
+    }
 
     public String getMcpToken() { return mcpToken; }
     public void setMcpToken(String v) { mcpToken = v; }

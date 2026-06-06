@@ -16,7 +16,7 @@ class McpToolMetadataTest {
     @Test
     void allRegisteredTools_haveAgentUsefulDescriptionsAndValidSchemas() {
         List<McpTool> tools = allTools();
-        assertEquals(40, tools.size());
+        assertEquals(41, tools.size());
 
         for (McpTool tool : tools) {
             String description = tool.description();
@@ -103,6 +103,7 @@ class McpToolMetadataTest {
         tools.addAll(new NiagaraScheduleTools(security).tools());
         tools.addAll(new NiagaraPointTools(security).tools());
         tools.addAll(new NiagaraEquipmentTools(security).tools());
+        tools.addAll(new NiagaraDeviceProfileTool(security).tools());
         tools.addAll(new NiagaraFaultScanTool(security).tools());
         tools.addAll(new NiagaraBuildingBriefTool(security).tools());
         tools.addAll(new NiagaraHaystackTools(security, "haystack-rules.json").tools());

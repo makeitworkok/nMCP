@@ -11,13 +11,28 @@ Sensitive slot names (`password`, `secret`, `token`, `key`, `credential`, `auth`
 - BMcpService `readOnly=false`: write-capable tools are allowed to run, still subject to allowlists and tool-specific validation.
 - This selector is persistent in station config and should be treated as an operational change-control toggle.
 
-This reference matches current branch behavior for v0.8.6.
+## Agent Identity Enforcement (`requireAgentIdentity`)
+
+- BMcpService `requireAgentIdentity=false` (default): missing/invalid `X-MCP-Agent` is accepted and logged as `unknown`.
+- BMcpService `requireAgentIdentity=true`: requests missing a usable `X-MCP-Agent` are rejected with HTTP 400 (`MissingAgent`).
+- This is a hidden persistent service slot and can also be overridden by system property `nmcp.mcp.requireAgent=true`.
+
+## Approved Agent Allowlist (`approvedAgents`, `requireApprovedAgent`)
+
+- BMcpService `approvedAgents`: comma-separated allowlist of agent names (example: `copilot.enforcement.test,claude.desktop`).
+- BMcpService `requireApprovedAgent=false` (default): allowlist is informational only and not enforced.
+- BMcpService `requireApprovedAgent=true`: requests are allowed only when `X-MCP-Agent` matches an entry in `approvedAgents`.
+- Rejections return HTTP 403 (`UnapprovedAgent`).
+- If enforcement is enabled and `approvedAgents` is empty, all requests are rejected (fail-closed behavior).
+- System property overrides are available: `nmcp.mcp.requireApprovedAgent=true` and `nmcp.mcp.approvedAgents=<csv>`.
+
+This reference matches current branch behavior for v0.8.7.
 
 ---
 
-## Tool Inventory (v0.8.6)
+## Tool Inventory (v0.8.7)
 
-v0.8.6 keeps the surface at 40 tools and hardens nMCP's zero-dependency JSON-RPC helper with top-level array/value parsing, stricter full-document validation, invalid-number rejection, and typed extraction helpers. Tool descriptions and JSON Schema property descriptions are also treated as agent/client context: they call out intent, ORD expectations, dry-run/write-mode behavior, sequencing rules, defaults, and common discovery paths. No `jsonToolkit-wb`, `jsonToolkit-rt`, or `jsonSmart-rt` runtime dependency is required.
+v0.8.7 keeps the surface at 41 tools and adds device onboarding profiling for newly added equipment. Tool descriptions and JSON Schema property descriptions are treated as agent/client context: they call out intent, ORD expectations, dry-run/write-mode behavior, sequencing rules, defaults, and common discovery paths.
 All tool names use the `nmcp.*` namespace.
 
 | Category | Tools |
@@ -31,12 +46,13 @@ All tool names use the `nmcp.*` namespace.
 | Schedules | `nmcp.schedule.read`, `nmcp.schedule.list`, `nmcp.schedule.write` |
 | Points | `nmcp.point.read`, `nmcp.point.search` |
 | Equipment | `nmcp.equipment.status` |
+| Device Profiling | `nmcp.device.profile` |
 | Diagnostics | `nmcp.fault.scan`, `nmcp.building.brief` |
 | Haystack | `nmcp.haystack.getRuleset`, `nmcp.haystack.setRuleset`, `nmcp.haystack.applyRules`, `nmcp.haystack.scanPoints`, `nmcp.haystack.suggestTags` |
 | Wiresheet | `nmcp.wiresheet.schema`, `nmcp.wiresheet.plan`, `nmcp.wiresheet.diff`, `nmcp.wiresheet.apply`, `nmcp.wiresheet.links`, `nmcp.wiresheet.layout` |
 | Write | `nmcp.point.write`, `nmcp.point.override`, `nmcp.component.invokeAction`, `nmcp.station.restart`, `nmcp.driver.discoverAndAdd` |
 
-Total: 40 tools.
+Total: 41 tools.
 
 ---
 
@@ -629,6 +645,35 @@ curl -X POST http://127.0.0.1:8765/nmcp \
 ---
 
 ## Diagnostics
+
+### `nmcp.device.profile`
+
+Builds a one-call onboarding profile for a specific device ORD, including point inventory, writable/action candidates, health counts, history candidates, capabilities, and recommended next steps.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `deviceOrd` | string | Yes | Allowlisted device ORD to profile |
+| `limit` | integer | No | Max entries returned per category list |
+| `includeDescendants` | boolean | No | Recurse through nested children (default `true`) |
+
+**Example request:**
+```bash
+curl -X POST http://127.0.0.1:8765/nmcp \
+  -H "X-MCP-Token: <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nmcp.device.profile","arguments":{"deviceOrd":"station:|slot:/Drivers/BacnetNetwork/DeviceA","limit":25,"includeDescendants":true}}}'
+```
+
+**Response highlights:**
+- `summary`: scanned counts and health totals
+- `pointTypeCounts`: numeric/boolean/enum/string/other distribution
+- `writableCandidates`, `actionCandidates`, `historyCandidates`, `faultedPoints`
+- `capabilities`: boolean matrix for common next operations
+- `nextSteps`: recommended follow-up tools for control, trending, alarms, and haystack tagging
+
+---
 
 ### `nmcp.fault.scan`
 
